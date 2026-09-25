@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore Platform.slnx
+      - name: Build (warnings are errors)
+        run: dotnet build Platform.slnx --no-restore -c Release
+      - name: Check for missing migrations
+        run: |
+          dotnet tool restore
+          for m in Identity Tenancy People Groups Events Giving Content Communications; do
+            dotnet ef migrations has-pending-model-changes -p src/Modules/$m/Platform.Modules.$m -s src/Host/Platform.Api --no-build -c Release
+          done
+      - name: Test
+        env:
+          TEST_DB_CONNECTION: Host=localhost;Port=5432;Username=postgres;Password=postgres
+        run: dotnet test --solution Platform.slnx --no-build -c Release
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t platform-api:${{ github.sha }} .

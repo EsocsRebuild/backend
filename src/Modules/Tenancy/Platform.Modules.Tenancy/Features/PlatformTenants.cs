@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Platform.Application.Messaging;
 using Platform.Application.Pagination;
+using Platform.Application.Tenancy;
 using Platform.Infrastructure.Caching;
 using Platform.Modules.Tenancy.Domain;
 using Platform.Modules.Tenancy.Infrastructure;
@@ -43,7 +44,7 @@ public static class PlatformTenants
     }
 
     /// <summary>Creates the tenant and its headquarters branch; Identity provisions roles and the owner via event.</summary>
-    public sealed class CreateHandler(TenancyDbContext db, HybridCache cache) : ICommandHandler<CreateCommand, TenantResponse>
+    public sealed class CreateHandler(TenancyDbContext db, HybridCache cache, ITenantContextSetter tenantContext) : ICommandHandler<CreateCommand, TenantResponse>
     {
         public async Task<Result<TenantResponse>> Handle(CreateCommand c, CancellationToken ct)
         {
@@ -55,6 +56,9 @@ public static class PlatformTenants
 
             var tenant = Tenant.Create(slug, c.Name, c.Kind, c.TimeZone, c.Currency, c.Locale, c.OwnerEmail, c.OwnerFirstName, c.OwnerLastName);
             db.Tenants.Add(tenant);
+
+            // Onboarding acts inside the new organisation (the operator's own tenant must not leak in).
+            tenantContext.SetTenant(tenant.Id);
 
             var headquarters = Branch.Create("Headquarters", "HQ", isHeadquarters: true);
             headquarters.AssignTenant(tenant.Id);

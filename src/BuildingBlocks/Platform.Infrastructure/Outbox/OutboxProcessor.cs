@@ -75,11 +75,11 @@ public sealed partial class OutboxProcessor<TContext>(
 
 #pragma warning disable EF1002 // Schema is a compile-time constant owned by the module, not user input.
         var messages = await context.OutboxMessages
-            .FromSqlRaw($"""
-                SELECT * FROM "{context.Schema}".outbox_messages
-                WHERE processed_at IS NULL AND attempts < {{0}}
+            .FromSqlRaw($$"""
+                SELECT * FROM "{{context.Schema}}".outbox_messages
+                WHERE processed_at IS NULL AND attempts < {0}
                 ORDER BY occurred_at
-                LIMIT {{1}}
+                LIMIT {1}
                 FOR UPDATE SKIP LOCKED
                 """, options.Value.MaxAttempts, options.Value.BatchSize)
             .ToListAsync(cancellationToken);

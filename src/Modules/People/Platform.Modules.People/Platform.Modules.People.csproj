@@ -9,6 +9,7 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\Platform.Web\Platform.Web.csproj" />
     <ProjectReference Include="..\Platform.Modules.People.Contracts\Platform.Modules.People.Contracts.csproj" />
     <ProjectReference Include="..\..\Identity\Platform.Modules.Identity.Contracts\Platform.Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\Events\Platform.Modules.Events.Contracts\Platform.Modules.Events.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Platform.UnitTests" />

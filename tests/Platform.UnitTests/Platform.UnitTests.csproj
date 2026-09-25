@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Events\Platform.Modules.Events\Platform.Modules.Events.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Giving\Platform.Modules.Giving\Platform.Modules.Giving.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\Platform.Modules.Identity\Platform.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Communications\Platform.Modules.Communications\Platform.Modules.Communications.csproj" />
+    <ProjectReference Include="..\..\src\Modules\People\Platform.Modules.People\Platform.Modules.People.csproj" />
+  </ItemGroup>
+</Project>

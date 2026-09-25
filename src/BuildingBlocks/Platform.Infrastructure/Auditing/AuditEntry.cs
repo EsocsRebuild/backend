@@ -53,7 +53,7 @@ public sealed class AuditEntryConfiguration(bool ownsTable) : IEntityTypeConfigu
         builder.Property(x => x.Id).ValueGeneratedNever();
         builder.Property(x => x.Module).HasMaxLength(64);
         builder.Property(x => x.EntityType).HasMaxLength(128);
-        builder.Property(x => x.EntityId).HasMaxLength(64);
+        builder.Property(x => x.EntityId).HasMaxLength(128);
         builder.Property(x => x.Action).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.Changes).HasColumnType("jsonb");
         builder.Property(x => x.IpAddress).HasMaxLength(64);

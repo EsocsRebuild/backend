@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Platform.Web\Platform.Web.csproj" />
+    <ProjectReference Include="..\Platform.Modules.Giving.Contracts\Platform.Modules.Giving.Contracts.csproj" />
+    <ProjectReference Include="..\..\People\Platform.Modules.People.Contracts\Platform.Modules.People.Contracts.csproj" />
+    <ProjectReference Include="..\..\Tenancy\Platform.Modules.Tenancy.Contracts\Platform.Modules.Tenancy.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Platform.UnitTests" />
+    <InternalsVisibleTo Include="Platform.IntegrationTests" />
+  </ItemGroup>
+</Project>

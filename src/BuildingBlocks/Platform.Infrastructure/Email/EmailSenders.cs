@@ -39,6 +39,7 @@ internal sealed class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSe
     public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
         var settings = options.Value;
+        var host = settings.SmtpHost ?? throw new InvalidOperationException("Email:SmtpHost is not configured.");
         var mime = new MimeMessage();
         mime.From.Add(new MailboxAddress(settings.FromName, settings.FromAddress));
         mime.To.Add(MailboxAddress.Parse(message.To));
@@ -51,12 +52,12 @@ internal sealed class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSe
         mime.Body = new BodyBuilder { HtmlBody = message.HtmlBody, TextBody = message.TextBody }.ToMessageBody();
 
         using var client = new SmtpClient();
-        await client.ConnectAsync(settings.SmtpHost, settings.SmtpPort,
+        await client.ConnectAsync(host, settings.SmtpPort,
             settings.UseStartTls ? SecureSocketOptions.StartTls : SecureSocketOptions.Auto, cancellationToken);
 
         if (!string.IsNullOrEmpty(settings.SmtpUsername))
         {
-            await client.AuthenticateAsync(settings.SmtpUsername, settings.SmtpPassword, cancellationToken);
+            await client.AuthenticateAsync(settings.SmtpUsername, settings.SmtpPassword ?? string.Empty, cancellationToken);
         }
 
         await client.SendAsync(mime, cancellationToken);

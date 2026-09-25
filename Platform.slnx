@@ -1,0 +1,48 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/Platform.Application/Platform.Application.csproj" />
+    <Project Path="src/BuildingBlocks/Platform.Infrastructure/Platform.Infrastructure.csproj" />
+    <Project Path="src/BuildingBlocks/Platform.SharedKernel/Platform.SharedKernel.csproj" />
+    <Project Path="src/BuildingBlocks/Platform.Web/Platform.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/Host/">
+    <Project Path="src/Host/Platform.Api/Platform.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Communications/">
+    <Project Path="src/Modules/Communications/Platform.Modules.Communications/Platform.Modules.Communications.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Content/">
+    <Project Path="src/Modules/Content/Platform.Modules.Content/Platform.Modules.Content.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Events/">
+    <Project Path="src/Modules/Events/Platform.Modules.Events.Contracts/Platform.Modules.Events.Contracts.csproj" />
+    <Project Path="src/Modules/Events/Platform.Modules.Events/Platform.Modules.Events.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Giving/">
+    <Project Path="src/Modules/Giving/Platform.Modules.Giving.Contracts/Platform.Modules.Giving.Contracts.csproj" />
+    <Project Path="src/Modules/Giving/Platform.Modules.Giving/Platform.Modules.Giving.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Groups/">
+    <Project Path="src/Modules/Groups/Platform.Modules.Groups.Contracts/Platform.Modules.Groups.Contracts.csproj" />
+    <Project Path="src/Modules/Groups/Platform.Modules.Groups/Platform.Modules.Groups.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/Platform.Modules.Identity.Contracts/Platform.Modules.Identity.Contracts.csproj" />
+    <Project Path="src/Modules/Identity/Platform.Modules.Identity/Platform.Modules.Identity.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/People/">
+    <Project Path="src/Modules/People/Platform.Modules.People.Contracts/Platform.Modules.People.Contracts.csproj" />
+    <Project Path="src/Modules/People/Platform.Modules.People/Platform.Modules.People.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Tenancy/">
+    <Project Path="src/Modules/Tenancy/Platform.Modules.Tenancy.Contracts/Platform.Modules.Tenancy.Contracts.csproj" />
+    <Project Path="src/Modules/Tenancy/Platform.Modules.Tenancy/Platform.Modules.Tenancy.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Platform.ArchitectureTests/Platform.ArchitectureTests.csproj" />
+    <Project Path="tests/Platform.IntegrationTests/Platform.IntegrationTests.csproj" />
+    <Project Path="tests/Platform.UnitTests/Platform.UnitTests.csproj" />
+  </Folder>
+</Solution>

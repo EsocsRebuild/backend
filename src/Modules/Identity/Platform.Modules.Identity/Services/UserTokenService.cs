@@ -14,7 +14,7 @@ public enum UserTokenPurpose
 /// Stateless, time-limited, single-purpose tokens for email links. Each token embeds the user's
 /// security stamp, so it becomes invalid as soon as the password (or 2FA) changes.
 /// </summary>
-internal sealed class UserTokenService(IDataProtectionProvider provider)
+public sealed class UserTokenService(IDataProtectionProvider provider)
 {
     public string Create(User user, UserTokenPurpose purpose, TimeSpan lifetime) =>
         Protector(purpose).Protect($"{user.Id:N}|{user.SecurityStamp}", lifetime);

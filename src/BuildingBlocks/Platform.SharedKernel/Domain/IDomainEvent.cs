@@ -19,7 +19,7 @@ public abstract record DomainEvent : IDomainEvent
 /// </summary>
 public interface IIntegrationEvent : IDomainEvent
 {
-    Guid? TenantId { get; }
+    Guid TenantId { get; }
 }
 
-public abstract record IntegrationEvent(Guid? TenantId) : DomainEvent, IIntegrationEvent;
+public abstract record IntegrationEvent(Guid TenantId) : DomainEvent, IIntegrationEvent;

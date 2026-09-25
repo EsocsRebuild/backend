@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +14,13 @@ public static class DependencyInjection
     public static IServiceCollection AddPlatformWeb(this IServiceCollection services)
     {
         services.AddHttpContextAccessor();
+
+        // Enums travel as strings ("Admin", "Member") in both directions — stable and self-describing for clients.
+        services.ConfigureHttpJsonOptions(o =>
+        {
+            o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            o.SerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never;
+        });
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
         services.AddScoped<IRequestInfo, HttpRequestInfo>();
         services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
