@@ -31,7 +31,7 @@ namespace Platform.Modules.Events.Infrastructure.Migrations
                     summary = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     description = table.Column<string>(type: "character varying(20000)", maxLength: 20000, nullable: true),
                     cover_image_url = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
-                    branch_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    unit_id = table.Column<Guid>(type: "uuid", nullable: true),
                     group_id = table.Column<Guid>(type: "uuid", nullable: true),
                     location = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
                     is_online = table.Column<bool>(type: "boolean", nullable: false),

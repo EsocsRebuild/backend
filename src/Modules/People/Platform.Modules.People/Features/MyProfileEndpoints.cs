@@ -11,6 +11,10 @@ using Platform.Web.Endpoints;
 
 namespace Platform.Modules.People.Features;
 
+public sealed record MyMemberProfileResponse(Guid Id, string MemberNumber, string FirstName, string LastName, string? PreferredName, string? Email,
+    string? PhoneNumber, string? AlternatePhoneNumber, Address Address, string? Occupation, string? PhotoUrl, bool ConsentToContact, bool EmailConsent,
+    Guid? ParishId, string Status, string Stage);
+
 public sealed record UpdateMyProfileRequest(string? PhoneNumber, string? AlternatePhoneNumber, Address? Address, string? Occupation, string? PhotoUrl, bool ConsentToContact);
 
 internal sealed class UpdateMyProfileValidator : AbstractValidator<UpdateMyProfileRequest>
@@ -30,6 +34,10 @@ internal sealed class UpdateMyProfileValidator : AbstractValidator<UpdateMyProfi
 /// </summary>
 public static class MyProfileEndpoints
 {
+    private static MyMemberProfileResponse ToResponse(Domain.Person p) => new(p.Id, p.MemberNumber, p.FirstName, p.LastName, p.PreferredName, p.Email,
+        p.PhoneNumber, p.AlternatePhoneNumber, p.Address, p.Occupation, p.PhotoUrl, p.ConsentToContact, p.EmailConsent, p.UnitId,
+        p.Status.ToString().ToLowerInvariant(), p.MembershipStatus.ToString().ToLowerInvariant());
+
     private static readonly Error NoProfile = Error.NotFound("person.no_profile", "No member profile is linked to your account yet.");
 
     public static void Map(IEndpointRouteBuilder endpoints)
@@ -38,7 +46,7 @@ public static class MyProfileEndpoints
 
         group.MapGet("/", async (ICurrentUser user, PeopleDbContext db, CancellationToken ct) =>
                 await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == user.UserId, ct) is { } person
-                    ? Results.Ok(person.ToResponse())
+                    ? Results.Ok(ToResponse(person))
                     : NoProfile.ToError())
             .WithSummary("My member profile");
 
@@ -52,7 +60,7 @@ public static class MyProfileEndpoints
 
                 person.UpdateContactDetails(r.PhoneNumber, r.AlternatePhoneNumber, r.Address, r.Occupation, r.PhotoUrl, r.ConsentToContact);
                 await db.SaveChangesAsync(ct);
-                return Results.Ok(person.ToResponse());
+                return Results.Ok(ToResponse(person));
             })
             .WithValidation<UpdateMyProfileRequest>()
             .WithSummary("Update my contact details");

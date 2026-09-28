@@ -31,6 +31,17 @@ public enum MembershipStatus
     Deceased,
 }
 
+/// <summary>State of the record in the admin portal (contract <c>MemberStatus</c>).</summary>
+public enum RecordStatus
+{
+    Active,
+
+    /// <summary>Awaiting approval (e.g. signed up on the website or app).</summary>
+    Pending,
+    Inactive,
+    Suspended,
+}
+
 public enum HouseholdRole
 {
     Head,
@@ -50,8 +61,25 @@ public sealed class Person : TenantAggregateRoot
 
     private Person() { }
 
-    /// <summary>Human-friendly, per-tenant unique identifier printed on cards and reports, e.g. "M-000123".</summary>
+    /// <summary>Human-friendly, per-organisation unique identifier printed on cards and reports, e.g. "MBR-000123".</summary>
     public string MemberNumber { get; private set; } = null!;
+
+    public RecordStatus Status { get; private set; }
+
+    /// <summary>Rank / title in the church (e.g. "Evangelist", "Senior Apostle").</summary>
+    public string? Rank { get; private set; }
+
+    /// <summary>Administrative notes on the record (pastoral notes live in <see cref="PersonNote"/>).</summary>
+    public string? Notes { get; private set; }
+
+    /// <summary>Agreed to receive email updates. Required before being added to any email audience.</summary>
+    public bool EmailConsent { get; private set; }
+
+    public DateTimeOffset? EmailConsentRecordedAt { get; private set; }
+    public Guid? EmailConsentRecordedBy { get; private set; }
+
+    /// <summary>How consent was obtained: "admin", "website", "form", "import".</summary>
+    public string? EmailConsentSource { get; private set; }
 
     public Guid? UnitId { get; private set; }
     public Guid? HouseholdId { get; private set; }
@@ -106,6 +134,7 @@ public sealed class Person : TenantAggregateRoot
             FirstName = firstName.Trim(),
             LastName = lastName.Trim(),
             MembershipStatus = status,
+            Status = RecordStatus.Active,
             FirstVisitDate = today,
             MembershipDate = status == MembershipStatus.Member ? today : null,
         };
@@ -154,6 +183,39 @@ public sealed class Person : TenantAggregateRoot
     }
 
     public void SetCustomFields(string json) => CustomFields = json;
+
+    /// <summary>Fields edited from the admin portal's member form.</summary>
+    public void UpdateRecord(string firstName, string lastName, string? email, string? phone, Guid? unitId, string? rank, Gender gender,
+        DateOnly? dateOfBirth, string? address, string? notes, RecordStatus status)
+    {
+        FirstName = firstName.Trim();
+        LastName = lastName.Trim();
+        Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLowerInvariant();
+        PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
+        UnitId = unitId;
+        Rank = string.IsNullOrWhiteSpace(rank) ? null : rank.Trim();
+        Gender = gender;
+        DateOfBirth = dateOfBirth;
+        Address = string.IsNullOrWhiteSpace(address) ? Address.Empty : Address with { Line1 = address.Trim() };
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        Status = status;
+    }
+
+    public void SetStatus(RecordStatus status) => Status = status;
+
+    /// <summary>Records (or withdraws) consent to email, with who attested it and how (anti-spam compliance).</summary>
+    public void SetEmailConsent(bool consent, Guid? recordedBy, string source, DateTimeOffset now)
+    {
+        if (consent == EmailConsent)
+        {
+            return;
+        }
+
+        EmailConsent = consent;
+        EmailConsentRecordedAt = now;
+        EmailConsentRecordedBy = recordedBy;
+        EmailConsentSource = source;
+    }
 
     public void ChangeMembershipStatus(MembershipStatus status, DateOnly effectiveDate, string? reason)
     {

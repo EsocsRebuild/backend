@@ -12,6 +12,8 @@ public sealed record PersonCreatedIntegrationEvent(Guid TenantId, Guid PersonId,
 public sealed record PersonMembershipStatusChangedIntegrationEvent(Guid TenantId, Guid PersonId, string From, string To)
     : IntegrationEvent(TenantId);
 
+public sealed record MemberDashboardStats(long Total, long NewThisMonth, long NewLastMonth, long PendingApproval, IReadOnlyList<long> Trend);
+
 public sealed record PersonSummary(Guid Id, string MemberNumber, string FullName, string? Email, string? PhoneNumber, string? PhotoUrl, Guid? UnitId, Guid? UserId);
 
 /// <summary>Audience selection for communications. All criteria combine with AND; empty lists mean "any".</summary>
@@ -30,6 +32,9 @@ public interface IPeopleDirectory
     Task<IReadOnlyDictionary<Guid, PersonSummary>> GetSummariesAsync(IEnumerable<Guid> personIds, CancellationToken cancellationToken);
 
     Task<Guid?> FindPersonIdByUserAsync(Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>Headline membership figures, limited to the caller's parish scope.</summary>
+    Task<MemberDashboardStats> GetDashboardStatsAsync(CancellationToken cancellationToken);
 
     /// <summary>Contactable people matching the filter (respects communication consent by default).</summary>
     Task<IReadOnlyList<ContactInfo>> FindContactsAsync(AudienceFilter filter, CancellationToken cancellationToken);

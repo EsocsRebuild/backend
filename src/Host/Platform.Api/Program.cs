@@ -71,6 +71,8 @@ foreach (var module in Modules.All)
     module.MapEndpoints(api);
 }
 
+Platform.Api.Features.Dashboard.Map(api);
+
 await DatabaseInitializer.InitialiseAsync(app);
 await app.RunAsync();
 

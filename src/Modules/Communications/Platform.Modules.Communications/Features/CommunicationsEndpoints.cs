@@ -138,9 +138,11 @@ public static class CommunicationsEndpoints
         me.MapGet("/prayer-requests", MyPrayerRequests).WithSummary("My prayer requests");
         me.MapPost("/devices", RegisterDevice).WithSummary("Register a push notification token");
         me.MapDelete("/devices/{token}", UnregisterDevice).WithSummary("Unregister a push token (on sign-out)");
-        me.MapGet("/notifications", MyNotifications).WithSummary("My in-app notifications");
-        me.MapPost("/notifications/{id:guid}/read", MarkRead).WithSummary("Mark a notification read");
-        me.MapPost("/notifications/read-all", MarkAllRead).WithSummary("Mark all notifications read");
+
+        var notifications = endpoints.MapGroup("notifications").WithTags("Notifications").RequireAuthorization();
+        notifications.MapGet("/", MyNotifications).WithSummary("My notifications (newest first) with the unread count");
+        notifications.MapPost("/{id:guid}/read", MarkRead).WithSummary("Mark one notification read");
+        notifications.MapPost("/read-all", MarkAllRead).WithSummary("Mark all my notifications read");
     }
 
     // ---- Announcements ---------------------------------------------------------------------
@@ -402,14 +404,15 @@ public static class CommunicationsEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> MyNotifications([AsParameters] PageRequest page, bool? unreadOnly, ICurrentUser user, CommunicationsDbContext db, CancellationToken ct)
+    private static async Task<IResult> MyNotifications(int? limit, bool? unreadOnly, ICurrentUser user, CommunicationsDbContext db, CancellationToken ct)
     {
         var query = db.Notifications.AsNoTracking().Where(n => n.UserId == user.UserId);
         var unread = await query.CountAsync(n => n.ReadAt == null, ct);
         if (unreadOnly == true) query = query.Where(n => n.ReadAt == null);
-        var items = await query.OrderByDescending(n => n.CreatedAt).Skip(page.Skip).Take(page.SafePageSize)
-            .Select(n => new { n.Id, n.Category, n.Title, n.Body, n.Link, n.ReadAt, n.CreatedAt }).ToListAsync(ct);
-        return Results.Ok(new { unreadCount = unread, items });
+        var items = await query.OrderByDescending(n => n.CreatedAt).Take(Math.Clamp(limit ?? 15, 1, 100))
+            .Select(n => new { n.Id, n.Title, n.Body, href = n.Link, tone = n.Tone.ToString().ToLower(), read = n.ReadAt != null, n.CreatedAt })
+            .ToListAsync(ct);
+        return Results.Ok(new WithMeta(items, new { unread }));
     }
 
     private static async Task<IResult> MarkRead(Guid id, ICurrentUser user, CommunicationsDbContext db, TimeProvider clock, CancellationToken ct)

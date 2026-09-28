@@ -52,7 +52,7 @@ internal sealed class UnitConfiguration : IEntityTypeConfiguration<Unit>
         builder.Property(x => x.Kind).HasConversion(k => UnitKinds.Format(k), v => Parse(v)).HasMaxLength(32);
         builder.Property(x => x.Name).HasMaxLength(200);
         builder.Property(x => x.Path).HasMaxLength(2000);
-        builder.HasIndex(x => new { x.TenantId, x.Path }).HasOperators("text_pattern_ops");
+        builder.HasIndex(x => new { x.TenantId, x.Path }).HasOperators("uuid_ops", "text_pattern_ops");
         builder.Property(x => x.Status).IsEnumText();
         builder.Property(x => x.Tagline).HasMaxLength(300);
         builder.Property(x => x.About).HasColumnType("text[]");

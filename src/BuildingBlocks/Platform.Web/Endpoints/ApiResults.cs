@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -61,11 +62,17 @@ public static class ApiErrorCodes
     };
 }
 
-internal sealed record ErrorBody(string Code, string Message, IReadOnlyDictionary<string, string[]>? Fields, string? Reason);
+internal sealed record ErrorBody(
+    string Code,
+    string Message,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyDictionary<string, string[]>? Fields,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Reason);
 
 internal sealed record ErrorEnvelope(ErrorBody Error);
 
-internal sealed record DataEnvelope(object? Data, object? Meta);
+internal sealed record DataEnvelope(
+    object? Data,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] object? Meta);
 
 /// <summary>Writes <c>{ "error": … }</c>.</summary>
 public sealed class ApiErrorResult(int status, string code, string message, IReadOnlyDictionary<string, string[]>? fields = null, string? reason = null)

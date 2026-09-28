@@ -93,7 +93,7 @@ public static class CareEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var households = endpoints.MapModuleGroup("households", "People");
+        var households = endpoints.MapModuleGroup("households", "Members");
         households.MapGet("/", ListHouseholds).RequirePermission(Permissions.Members.View).WithSummary("List households");
         households.MapGet("/{id:guid}", GetHousehold).RequirePermission(Permissions.Members.View).WithSummary("Get a household with members");
         households.MapPost("/", CreateHousehold).WithValidation<SaveHouseholdRequest>().RequirePermission(Permissions.Members.Manage).WithSummary("Create a household");
@@ -102,7 +102,7 @@ public static class CareEndpoints
         households.MapPost("/{id:guid}/members", AddMember).RequirePermission(Permissions.Members.Manage).WithSummary("Add a person to a household");
         households.MapDelete("/{id:guid}/members/{personId:guid}", RemoveMember).RequirePermission(Permissions.Members.Manage).WithSummary("Remove a person from a household");
 
-        var people = endpoints.MapModuleGroup("people", "People");
+        var people = endpoints.MapModuleGroup("members", "Members");
         people.MapGet("/{personId:guid}/notes", ListNotes).RequirePermission(Permissions.Pastoral.View).WithSummary("Pastoral notes for a person");
         people.MapPost("/{personId:guid}/notes", CreateNote).WithValidation<CreateNoteRequest>().RequirePermission(Permissions.Pastoral.Manage).WithSummary("Add a note");
         people.MapDelete("/{personId:guid}/notes/{noteId:guid}", DeleteNote).RequirePermission(Permissions.Pastoral.Manage).WithSummary("Delete one of my notes");
@@ -113,7 +113,7 @@ public static class CareEndpoints
         followUps.MapPut("/{id:guid}", UpdateFollowUp).WithValidation<SaveFollowUpRequest>().RequirePermission(Permissions.Pastoral.Manage).WithSummary("Update a follow-up");
         followUps.MapPost("/{id:guid}/status", ChangeFollowUpStatus).RequirePermission(Permissions.Pastoral.Manage).WithSummary("Progress or close a follow-up");
 
-        var fields = endpoints.MapModuleGroup("people/custom-fields", "People");
+        var fields = endpoints.MapModuleGroup("members/custom-fields", "Members");
         fields.MapGet("/", ListCustomFields).RequirePermission(Permissions.Members.View).WithSummary("Custom profile fields");
         fields.MapPost("/", CreateCustomField).WithValidation<SaveCustomFieldRequest>().RequirePermission(Permissions.Settings.Manage).WithSummary("Define a custom field");
         fields.MapPut("/{id:guid}", UpdateCustomField).WithValidation<SaveCustomFieldRequest>().RequirePermission(Permissions.Settings.Manage).WithSummary("Update a custom field");
@@ -192,7 +192,7 @@ public static class CareEndpoints
         var person = await db.People.FirstOrDefaultAsync(p => p.Id == r.PersonId, ct);
         if (person is null)
         {
-            return PeopleEndpoints.NotFound.ToError();
+            return MembersEndpoints.NotFound.ToError();
         }
 
         person.JoinHousehold(id, r.Role);
@@ -205,7 +205,7 @@ public static class CareEndpoints
         var person = await db.People.FirstOrDefaultAsync(p => p.Id == personId && p.HouseholdId == id, ct);
         if (person is null)
         {
-            return PeopleEndpoints.NotFound.ToError();
+            return MembersEndpoints.NotFound.ToError();
         }
 
         person.LeaveHousehold();
@@ -240,13 +240,13 @@ public static class CareEndpoints
     {
         if (!await db.People.AnyAsync(p => p.Id == personId, ct))
         {
-            return PeopleEndpoints.NotFound.ToError();
+            return MembersEndpoints.NotFound.ToError();
         }
 
         var note = PersonNote.Create(personId, r.Category, r.Visibility, r.Body);
         db.Notes.Add(note);
         await db.SaveChangesAsync(ct);
-        return Results.Created($"/api/v1/people/{personId}/notes/{note.Id}",
+        return Results.Created($"/api/v1/members/{personId}/notes/{note.Id}",
             new NoteResponse(note.Id, personId, note.Category.ToString(), note.Visibility.ToString(), note.Body, note.CreatedBy, note.CreatedAt));
     }
 
@@ -302,7 +302,7 @@ public static class CareEndpoints
         var person = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Id == r.PersonId, ct);
         if (person is null)
         {
-            return PeopleEndpoints.NotFound.ToError();
+            return MembersEndpoints.NotFound.ToError();
         }
 
         var followUp = FollowUp.Create(r.PersonId, r.Type, r.Priority, r.AssignedToUserId, r.DueDate, r.Notes);
@@ -359,7 +359,7 @@ public static class CareEndpoints
         var field = CustomFieldDefinition.Create(r.Key, r.Label, r.FieldType, r.Options, r.IsRequired, r.SortOrder);
         db.CustomFields.Add(field);
         await db.SaveChangesAsync(ct);
-        return Results.Created($"/api/v1/people/custom-fields/{field.Id}", ToResponse(field));
+        return Results.Created($"/api/v1/members/custom-fields/{field.Id}", ToResponse(field));
     }
 
     private static async Task<IResult> UpdateCustomField(Guid id, SaveCustomFieldRequest r, PeopleDbContext db, CancellationToken ct)

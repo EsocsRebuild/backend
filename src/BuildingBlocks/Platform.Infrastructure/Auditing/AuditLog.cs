@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Platform.Application.Abstractions;
 using Platform.Application.Security;
 using Platform.Application.Tenancy;
@@ -13,7 +14,7 @@ public sealed class AuditLog(
     ICurrentUser user,
     IRequestInfo request,
     IHttpContextAccessor http,
-    IAuditEventStore store,
+    IServiceProvider services,
     TimeProvider clock) : IAuditLog
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -59,7 +60,8 @@ public sealed class AuditLog(
             return;
         }
 
+        // Resolved lazily: the store's DbContext depends on the save interceptor, which depends on this log.
         var events = Drain();
-        await store.SaveAsync(events, cancellationToken);
+        await services.GetRequiredService<IAuditEventStore>().SaveAsync(events, cancellationToken);
     }
 }

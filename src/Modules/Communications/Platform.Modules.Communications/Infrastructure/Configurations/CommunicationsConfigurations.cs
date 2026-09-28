@@ -100,6 +100,7 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
         builder.Property(x => x.Title).HasMaxLength(200);
         builder.Property(x => x.Body).HasMaxLength(2000);
         builder.Property(x => x.Link).HasMaxLength(1024);
+        builder.Property(x => x.Tone).IsEnumText(16);
         builder.HasIndex(x => new { x.UserId, x.ReadAt, x.CreatedAt });
     }
 }

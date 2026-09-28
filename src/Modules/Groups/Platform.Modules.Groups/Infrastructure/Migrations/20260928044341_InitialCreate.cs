@@ -28,7 +28,7 @@ namespace Platform.Modules.Groups.Infrastructure.Migrations
                     type = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     visibility = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     parent_group_id = table.Column<Guid>(type: "uuid", nullable: true),
-                    branch_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    unit_id = table.Column<Guid>(type: "uuid", nullable: true),
                     description = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: true),
                     image_url = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
                     meeting_schedule = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),

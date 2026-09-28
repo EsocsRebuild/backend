@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -16,42 +17,6 @@ namespace Platform.Modules.Tenancy.Infrastructure.Migrations
 
             migrationBuilder.AlterDatabase()
                 .Annotation("Npgsql:PostgresExtension:citext", ",,");
-
-            migrationBuilder.CreateTable(
-                name: "branches",
-                schema: "tenancy",
-                columns: table => new
-                {
-                    id = table.Column<Guid>(type: "uuid", nullable: false),
-                    name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    code = table.Column<string>(type: "citext", maxLength: 16, nullable: false),
-                    is_headquarters = table.Column<bool>(type: "boolean", nullable: false),
-                    status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    phone = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: true),
-                    time_zone = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
-                    leader_person_id = table.Column<Guid>(type: "uuid", nullable: true),
-                    established_on = table.Column<DateOnly>(type: "date", nullable: true),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
-                    address_city = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
-                    address_country = table.Column<string>(type: "character varying(2)", maxLength: 2, nullable: true),
-                    address_line1 = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    address_line2 = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    address_postal_code = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
-                    address_state = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
-                    tenant_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    created_by = table.Column<Guid>(type: "uuid", nullable: true),
-                    updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    updated_by = table.Column<Guid>(type: "uuid", nullable: true),
-                    is_deleted = table.Column<bool>(type: "boolean", nullable: false),
-                    deleted_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    deleted_by = table.Column<Guid>(type: "uuid", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("pk_branches", x => x.id);
-                });
 
             migrationBuilder.CreateTable(
                 name: "number_sequences",
@@ -145,6 +110,54 @@ namespace Platform.Modules.Tenancy.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "units",
+                schema: "tenancy",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    slug = table.Column<string>(type: "citext", maxLength: 120, nullable: false),
+                    kind = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    parent_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    path = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    depth = table.Column<int>(type: "integer", nullable: false),
+                    status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    holds_members = table.Column<bool>(type: "boolean", nullable: false),
+                    tagline = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
+                    about = table.Column<List<string>>(type: "text[]", nullable: false),
+                    locality = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    address = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    country = table.Column<string>(type: "character(2)", fixedLength: true, maxLength: 2, nullable: true),
+                    established = table.Column<DateOnly>(type: "date", nullable: true),
+                    phones = table.Column<List<string>>(type: "text[]", nullable: false),
+                    email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
+                    sort_order = table.Column<int>(type: "integer", nullable: false),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    tenant_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    created_by = table.Column<Guid>(type: "uuid", nullable: true),
+                    updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    updated_by = table.Column<Guid>(type: "uuid", nullable: true),
+                    is_deleted = table.Column<bool>(type: "boolean", nullable: false),
+                    deleted_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    deleted_by = table.Column<Guid>(type: "uuid", nullable: true),
+                    avatar = table.Column<string>(type: "jsonb", nullable: true),
+                    cover = table.Column<string>(type: "jsonb", nullable: true),
+                    leaders = table.Column<string>(type: "jsonb", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("pk_units", x => x.id);
+                    table.ForeignKey(
+                        name: "fk_units_units_parent_id",
+                        column: x => x.parent_id,
+                        principalSchema: "tenancy",
+                        principalTable: "units",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "tenant_domains",
                 schema: "tenancy",
                 columns: table => new
@@ -167,20 +180,6 @@ namespace Platform.Modules.Tenancy.Infrastructure.Migrations
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                 });
-
-            migrationBuilder.CreateIndex(
-                name: "ix_branches_tenant_id",
-                schema: "tenancy",
-                table: "branches",
-                column: "tenant_id");
-
-            migrationBuilder.CreateIndex(
-                name: "ix_branches_tenant_id_code",
-                schema: "tenancy",
-                table: "branches",
-                columns: new[] { "tenant_id", "code" },
-                unique: true,
-                filter: "is_deleted = false");
 
             migrationBuilder.CreateIndex(
                 name: "ix_outbox_messages_pending",
@@ -221,15 +220,50 @@ namespace Platform.Modules.Tenancy.Infrastructure.Migrations
                 table: "tenants",
                 column: "slug",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "ix_units_parent_id",
+                schema: "tenancy",
+                table: "units",
+                column: "parent_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_units_tenant_id",
+                schema: "tenancy",
+                table: "units",
+                column: "tenant_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_units_tenant_id_kind",
+                schema: "tenancy",
+                table: "units",
+                columns: new[] { "tenant_id", "kind" });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_units_tenant_id_parent_id_sort_order",
+                schema: "tenancy",
+                table: "units",
+                columns: new[] { "tenant_id", "parent_id", "sort_order" });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_units_tenant_id_path",
+                schema: "tenancy",
+                table: "units",
+                columns: new[] { "tenant_id", "path" })
+                .Annotation("Npgsql:IndexOperators", new[] { "uuid_ops", "text_pattern_ops" });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_units_tenant_id_slug",
+                schema: "tenancy",
+                table: "units",
+                columns: new[] { "tenant_id", "slug" },
+                unique: true,
+                filter: "is_deleted = false");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "branches",
-                schema: "tenancy");
-
             migrationBuilder.DropTable(
                 name: "number_sequences",
                 schema: "tenancy");
@@ -244,6 +278,10 @@ namespace Platform.Modules.Tenancy.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "tenant_domains",
+                schema: "tenancy");
+
+            migrationBuilder.DropTable(
+                name: "units",
                 schema: "tenancy");
 
             migrationBuilder.DropTable(

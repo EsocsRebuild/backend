@@ -4,7 +4,7 @@ using Platform.Modules.People.Domain;
 
 namespace Platform.Modules.People.Infrastructure;
 
-internal sealed class PeopleDirectory(PeopleDbContext db) : IPeopleDirectory
+internal sealed class PeopleDirectory(PeopleDbContext db, Features.MemberScope scope, TimeProvider clock) : IPeopleDirectory
 {
     public async Task<IReadOnlyDictionary<Guid, PersonSummary>> GetSummariesAsync(IEnumerable<Guid> personIds, CancellationToken cancellationToken)
     {
@@ -45,5 +45,11 @@ internal sealed class PeopleDirectory(PeopleDbContext db) : IPeopleDirectory
         return await query
             .Select(p => new ContactInfo(p.Id, p.PreferredName ?? p.FirstName, (p.PreferredName ?? p.FirstName) + " " + p.LastName, p.Email, p.PhoneNumber, p.UserId))
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<MemberDashboardStats> GetDashboardStatsAsync(CancellationToken cancellationToken)
+    {
+        var stats = await Features.MemberStats.ComputeAsync(await scope.ApplyAsync(db.People.AsNoTracking(), cancellationToken), clock.GetUtcNow(), cancellationToken);
+        return new MemberDashboardStats(stats.Total, stats.NewThisMonth, stats.NewLastMonth, stats.PendingApproval, stats.MonthlyTotals);
     }
 }
