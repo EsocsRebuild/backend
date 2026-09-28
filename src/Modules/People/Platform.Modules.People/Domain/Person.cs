@@ -53,7 +53,7 @@ public sealed class Person : TenantAggregateRoot
     /// <summary>Human-friendly, per-tenant unique identifier printed on cards and reports, e.g. "M-000123".</summary>
     public string MemberNumber { get; private set; } = null!;
 
-    public Guid? BranchId { get; private set; }
+    public Guid? UnitId { get; private set; }
     public Guid? HouseholdId { get; private set; }
     public HouseholdRole? HouseholdRole { get; private set; }
     public Guid? UserId { get; private set; }
@@ -138,7 +138,7 @@ public sealed class Person : TenantAggregateRoot
         SalvationDate = p.SalvationDate;
         BaptismDate = p.BaptismDate;
         FirstVisitDate = p.FirstVisitDate ?? FirstVisitDate;
-        BranchId = p.BranchId;
+        UnitId = p.UnitId;
         Tags = (p.Tags ?? []).Select(t => t.Trim().ToLowerInvariant()).Where(t => t.Length > 0).Distinct().ToList();
     }
 
@@ -202,7 +202,7 @@ public sealed record PersonProfile(
     string? Title, string FirstName, string? MiddleName, string LastName, string? PreferredName, Gender Gender,
     DateOnly? DateOfBirth, MaritalStatus MaritalStatus, DateOnly? WeddingAnniversary, string? Email, string? PhoneNumber,
     string? AlternatePhoneNumber, Address? Address, string? Occupation, string? Employer, string? PhotoUrl, string? Source,
-    bool ConsentToContact, DateOnly? SalvationDate, DateOnly? BaptismDate, DateOnly? FirstVisitDate, Guid? BranchId,
+    bool ConsentToContact, DateOnly? SalvationDate, DateOnly? BaptismDate, DateOnly? FirstVisitDate, Guid? UnitId,
     IReadOnlyList<string>? Tags);
 
 /// <summary>Immutable history of membership status transitions.</summary>

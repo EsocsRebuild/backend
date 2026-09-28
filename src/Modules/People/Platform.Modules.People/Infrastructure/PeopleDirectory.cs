@@ -16,7 +16,7 @@ internal sealed class PeopleDirectory(PeopleDbContext db) : IPeopleDirectory
 
         return await db.People.AsNoTracking()
             .Where(p => ids.Contains(p.Id))
-            .Select(p => new PersonSummary(p.Id, p.MemberNumber, (p.PreferredName ?? p.FirstName) + " " + p.LastName, p.Email, p.PhoneNumber, p.PhotoUrl, p.BranchId, p.UserId))
+            .Select(p => new PersonSummary(p.Id, p.MemberNumber, (p.PreferredName ?? p.FirstName) + " " + p.LastName, p.Email, p.PhoneNumber, p.PhotoUrl, p.UnitId, p.UserId))
             .ToDictionaryAsync(p => p.Id, cancellationToken);
     }
 
@@ -27,7 +27,7 @@ internal sealed class PeopleDirectory(PeopleDbContext db) : IPeopleDirectory
     {
         var query = db.People.AsNoTracking().Where(p => p.MembershipStatus != MembershipStatus.Deceased);
         if (filter.RequireConsent) query = query.Where(p => p.ConsentToContact);
-        if (filter.BranchId is { } branchId) query = query.Where(p => p.BranchId == branchId);
+        if (filter.UnitId is { } unitId) query = query.Where(p => p.UnitId == unitId);
         if (filter.PersonIds is { Count: > 0 } ids) query = query.Where(p => ids.Contains(p.Id));
         if (filter.Tags is { Count: > 0 } tags)
         {

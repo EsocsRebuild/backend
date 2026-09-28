@@ -27,7 +27,7 @@ public static class PublicContentEndpoints
                 var normalized = "/" + path.Trim().Trim('/');
                 var page = await db.Pages.AsNoTracking().FirstOrDefaultAsync(p => p.Path == normalized && p.Status == ContentStatus.Published, ct);
                 Cache(http);
-                return page is null ? NotFound.ToProblem() : Results.Ok(ContentAdminEndpoints.ToResponse(page));
+                return page is null ? NotFound.ToError() : Results.Ok(ContentAdminEndpoints.ToResponse(page));
             })
             .WithSummary("Get a published page by path, e.g. ?path=/about/leadership");
 
@@ -46,7 +46,7 @@ public static class PublicContentEndpoints
             {
                 var menu = await db.Menus.AsNoTracking().FirstOrDefaultAsync(m => m.Key == key, ct);
                 Cache(http);
-                return menu is null ? NotFound.ToProblem() : Results.Ok(ContentAdminEndpoints.ToResponse(menu));
+                return menu is null ? NotFound.ToError() : Results.Ok(ContentAdminEndpoints.ToResponse(menu));
             })
             .WithSummary("A navigation menu by key");
 
@@ -69,7 +69,7 @@ public static class PublicContentEndpoints
             {
                 var post = await db.Posts.AsNoTracking().FirstOrDefaultAsync(p => p.Slug == slug && p.Status == ContentStatus.Published, ct);
                 Cache(http);
-                return post is null ? NotFound.ToProblem() : Results.Ok(ContentAdminEndpoints.ToResponse(post));
+                return post is null ? NotFound.ToError() : Results.Ok(ContentAdminEndpoints.ToResponse(post));
             })
             .WithSummary("A published post by slug");
 
@@ -100,7 +100,7 @@ public static class PublicContentEndpoints
                 var sermon = await db.Sermons.AsNoTracking().FirstOrDefaultAsync(s => s.Slug == slug && s.Status == ContentStatus.Published, ct);
                 if (sermon is null)
                 {
-                    return NotFound.ToProblem();
+                    return NotFound.ToError();
                 }
 
                 var titles = await ContentAdminEndpoints.SeriesTitlesAsync(db, [sermon], ct);

@@ -34,12 +34,12 @@ public static class MyProfileEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup($"{EndpointExtensions.ApiPrefix}/me/profile").WithTags("My account").RequireAuthorization();
+        var group = endpoints.MapGroup("me/member-profile").WithTags("My account").RequireAuthorization();
 
         group.MapGet("/", async (ICurrentUser user, PeopleDbContext db, CancellationToken ct) =>
                 await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == user.UserId, ct) is { } person
                     ? Results.Ok(person.ToResponse())
-                    : NoProfile.ToProblem())
+                    : NoProfile.ToError())
             .WithSummary("My member profile");
 
         group.MapPut("/", async (UpdateMyProfileRequest r, ICurrentUser user, PeopleDbContext db, CancellationToken ct) =>
@@ -47,7 +47,7 @@ public static class MyProfileEndpoints
                 var person = await db.People.FirstOrDefaultAsync(p => p.UserId == user.UserId, ct);
                 if (person is null)
                 {
-                    return NoProfile.ToProblem();
+                    return NoProfile.ToError();
                 }
 
                 person.UpdateContactDetails(r.PhoneNumber, r.AlternatePhoneNumber, r.Address, r.Occupation, r.PhotoUrl, r.ConsentToContact);

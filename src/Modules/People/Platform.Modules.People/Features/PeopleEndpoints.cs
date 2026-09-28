@@ -17,10 +17,10 @@ namespace Platform.Modules.People.Features;
 
 public sealed record PersonListItem(
     Guid Id, string MemberNumber, string FullName, string? Email, string? PhoneNumber, string? PhotoUrl, string MembershipStatus,
-    string Gender, DateOnly? DateOfBirth, Guid? BranchId, Guid? HouseholdId, IReadOnlyList<string> Tags, bool HasAccount);
+    string Gender, DateOnly? DateOfBirth, Guid? UnitId, Guid? HouseholdId, IReadOnlyList<string> Tags, bool HasAccount);
 
 public sealed record PersonResponse(
-    Guid Id, string MemberNumber, Guid? BranchId, Guid? HouseholdId, string? HouseholdRole, Guid? UserId,
+    Guid Id, string MemberNumber, Guid? UnitId, Guid? HouseholdId, string? HouseholdRole, Guid? UserId,
     string? Title, string FirstName, string? MiddleName, string LastName, string? PreferredName, string FullName,
     string Gender, DateOnly? DateOfBirth, string MaritalStatus, DateOnly? WeddingAnniversary,
     string? Email, string? PhoneNumber, string? AlternatePhoneNumber, Address Address, string? Occupation, string? Employer,
@@ -32,14 +32,14 @@ public sealed record SavePersonRequest(
     string? Title, string FirstName, string? MiddleName, string LastName, string? PreferredName, Gender Gender,
     DateOnly? DateOfBirth, MaritalStatus MaritalStatus, DateOnly? WeddingAnniversary, string? Email, string? PhoneNumber,
     string? AlternatePhoneNumber, Address? Address, string? Occupation, string? Employer, string? PhotoUrl, string? Source,
-    bool ConsentToContact, DateOnly? SalvationDate, DateOnly? BaptismDate, DateOnly? FirstVisitDate, Guid? BranchId,
+    bool ConsentToContact, DateOnly? SalvationDate, DateOnly? BaptismDate, DateOnly? FirstVisitDate, Guid? UnitId,
     IReadOnlyList<string>? Tags, Dictionary<string, JsonElement>? CustomFields,
     MembershipStatus MembershipStatus = MembershipStatus.Visitor)
 {
     public PersonProfile ToProfile() => new(
         Title, FirstName, MiddleName, LastName, PreferredName, Gender, DateOfBirth, MaritalStatus, WeddingAnniversary, Email,
         PhoneNumber, AlternatePhoneNumber, Address, Occupation, Employer, PhotoUrl, Source, ConsentToContact, SalvationDate,
-        BaptismDate, FirstVisitDate, BranchId, Tags);
+        BaptismDate, FirstVisitDate, UnitId, Tags);
 }
 
 public sealed record ChangeStatusRequest(MembershipStatus Status, DateOnly? EffectiveDate, string? Reason);
@@ -53,7 +53,7 @@ public sealed record PeopleStatsResponse(
 public sealed record CelebrationItem(Guid PersonId, string FullName, DateOnly Date, string? PhotoUrl);
 
 public sealed record PeopleQuery(
-    int Page = 1, int PageSize = 25, string? Search = null, MembershipStatus? Status = null, Guid? BranchId = null,
+    int Page = 1, int PageSize = 25, string? Search = null, MembershipStatus? Status = null, Guid? UnitId = null,
     string? Tag = null, Gender? Gender = null, string? Sort = null);
 
 internal sealed class SavePersonValidator : AbstractValidator<SavePersonRequest>
@@ -90,18 +90,18 @@ public static class PeopleEndpoints
     {
         var group = endpoints.MapModuleGroup("people", "People");
 
-        group.MapGet("/", List).RequirePermission(Permissions.People.Read).WithSummary("Search people");
-        group.MapGet("/stats", Stats).RequirePermission(Permissions.People.Read).WithSummary("Membership dashboard figures");
-        group.MapGet("/{id:guid}", Get).RequirePermission(Permissions.People.Read).WithSummary("Get a person");
-        group.MapPost("/", Create).WithValidation<SavePersonRequest>().RequirePermission(Permissions.People.Write).WithSummary("Add a person");
-        group.MapPut("/{id:guid}", Update).WithValidation<SavePersonRequest>().RequirePermission(Permissions.People.Write).WithSummary("Update a person");
-        group.MapDelete("/{id:guid}", Delete).RequirePermission(Permissions.People.Delete).WithSummary("Archive (soft delete) a person");
-        group.MapPost("/{id:guid}/status", ChangeStatus).RequirePermission(Permissions.People.Write).WithSummary("Change membership status");
-        group.MapGet("/{id:guid}/status-history", StatusHistory).RequirePermission(Permissions.People.Read).WithSummary("Membership status timeline");
+        group.MapGet("/", List).RequirePermission(Permissions.Members.View).WithSummary("Search people");
+        group.MapGet("/stats", Stats).RequirePermission(Permissions.Members.View).WithSummary("Membership dashboard figures");
+        group.MapGet("/{id:guid}", Get).RequirePermission(Permissions.Members.View).WithSummary("Get a person");
+        group.MapPost("/", Create).WithValidation<SavePersonRequest>().RequirePermission(Permissions.Members.Manage).WithSummary("Add a person");
+        group.MapPut("/{id:guid}", Update).WithValidation<SavePersonRequest>().RequirePermission(Permissions.Members.Manage).WithSummary("Update a person");
+        group.MapDelete("/{id:guid}", Delete).RequirePermission(Permissions.Members.Manage).WithSummary("Archive (soft delete) a person");
+        group.MapPost("/{id:guid}/status", ChangeStatus).RequirePermission(Permissions.Members.Manage).WithSummary("Change membership status");
+        group.MapGet("/{id:guid}/status-history", StatusHistory).RequirePermission(Permissions.Members.View).WithSummary("Membership status timeline");
     }
 
     internal static PersonResponse ToResponse(this Person p) => new(
-        p.Id, p.MemberNumber, p.BranchId, p.HouseholdId, p.HouseholdRole?.ToString(), p.UserId, p.Title, p.FirstName, p.MiddleName,
+        p.Id, p.MemberNumber, p.UnitId, p.HouseholdId, p.HouseholdRole?.ToString(), p.UserId, p.Title, p.FirstName, p.MiddleName,
         p.LastName, p.PreferredName, p.FullName, p.Gender.ToString(), p.DateOfBirth, p.MaritalStatus.ToString(), p.WeddingAnniversary,
         p.Email, p.PhoneNumber, p.AlternatePhoneNumber, p.Address, p.Occupation, p.Employer, p.PhotoUrl, p.MembershipStatus.ToString(),
         p.FirstVisitDate, p.MembershipDate, p.SalvationDate, p.BaptismDate, p.Source, p.ConsentToContact, p.Tags,
@@ -125,7 +125,7 @@ public static class PeopleEndpoints
         }
 
         if (q.Status is { } status) query = query.Where(p => p.MembershipStatus == status);
-        if (q.BranchId is { } branchId) query = query.Where(p => p.BranchId == branchId);
+        if (q.UnitId is { } unitId) query = query.Where(p => p.UnitId == unitId);
         if (q.Gender is { } gender) query = query.Where(p => p.Gender == gender);
         if (!string.IsNullOrWhiteSpace(q.Tag)) query = query.Where(p => p.Tags.Contains(q.Tag.ToLowerInvariant()));
 
@@ -141,7 +141,7 @@ public static class PeopleEndpoints
         var items = await query.Skip(page.Skip).Take(page.SafePageSize)
             .Select(p => new PersonListItem(
                 p.Id, p.MemberNumber, (p.PreferredName ?? p.FirstName) + " " + p.LastName, p.Email, p.PhoneNumber, p.PhotoUrl,
-                p.MembershipStatus.ToString(), p.Gender.ToString(), p.DateOfBirth, p.BranchId, p.HouseholdId, p.Tags, p.UserId != null))
+                p.MembershipStatus.ToString(), p.Gender.ToString(), p.DateOfBirth, p.UnitId, p.HouseholdId, p.Tags, p.UserId != null))
             .ToListAsync(ct);
 
         return Results.Ok(new PagedResult<PersonListItem>(items, page.SafePage, page.SafePageSize, total));
@@ -150,7 +150,7 @@ public static class PeopleEndpoints
     private static async Task<IResult> Get(Guid id, PeopleDbContext db, CancellationToken ct) =>
         await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct) is { } person
             ? Results.Ok(person.ToResponse())
-            : NotFound.ToProblem();
+            : NotFound.ToError();
 
     private static async Task<IResult> Create(
         SavePersonRequest request, PeopleDbContext db, PersonFactory factory, CustomFieldValidator customFields, CancellationToken ct)
@@ -158,7 +158,7 @@ public static class PeopleEndpoints
         var fields = await customFields.ValidateAsync(request.CustomFields, ct);
         if (fields.IsFailure)
         {
-            return fields.Error.ToProblem();
+            return fields.Error.ToError();
         }
 
         var person = await factory.CreateAsync(request.FirstName, request.LastName, request.MembershipStatus, ct);
@@ -175,13 +175,13 @@ public static class PeopleEndpoints
         var person = await db.People.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (person is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         var fields = await customFields.ValidateAsync(request.CustomFields, ct);
         if (fields.IsFailure)
         {
-            return fields.Error.ToProblem();
+            return fields.Error.ToError();
         }
 
         person.UpdateProfile(request.ToProfile());
@@ -195,7 +195,7 @@ public static class PeopleEndpoints
         var person = await db.People.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (person is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         db.People.Remove(person);
@@ -208,12 +208,12 @@ public static class PeopleEndpoints
         var person = await db.People.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (person is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         if (!Enum.IsDefined(request.Status))
         {
-            return Error.Validation("person.invalid_status", "Unknown membership status.").ToProblem();
+            return Error.Validation("person.invalid_status", "Unknown membership status.").ToError();
         }
 
         person.ChangeMembershipStatus(request.Status, request.EffectiveDate ?? DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime), request.Reason);

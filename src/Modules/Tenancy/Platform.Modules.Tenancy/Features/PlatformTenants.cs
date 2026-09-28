@@ -43,7 +43,7 @@ public static class PlatformTenants
         }
     }
 
-    /// <summary>Creates the tenant and its headquarters branch; Identity provisions roles and the owner via event.</summary>
+    /// <summary>Creates the tenant and its headquarters unit; Identity provisions roles and the owner via event.</summary>
     public sealed class CreateHandler(TenancyDbContext db, HybridCache cache, ITenantContextSetter tenantContext) : ICommandHandler<CreateCommand, TenantResponse>
     {
         public async Task<Result<TenantResponse>> Handle(CreateCommand c, CancellationToken ct)
@@ -60,9 +60,7 @@ public static class PlatformTenants
             // Onboarding acts inside the new organisation (the operator's own tenant must not leak in).
             tenantContext.SetTenant(tenant.Id);
 
-            var headquarters = Branch.Create("Headquarters", "HQ", isHeadquarters: true);
-            headquarters.AssignTenant(tenant.Id);
-            db.Branches.Add(headquarters);
+            db.Units.Add(Unit.Create(tenant.Id, "headquarters", UnitKind.Headquarters, "Headquarters", parent: null));
 
             await db.SaveChangesAsync(ct);
             await cache.RemoveAsync(CacheKeys.TenantBySlug(slug), ct);
@@ -72,7 +70,7 @@ public static class PlatformTenants
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup($"{EndpointExtensions.ApiPrefix}/platform/tenants")
+        var group = endpoints.MapGroup("platform/tenants")
             .WithTags("Platform")
             .RequireAuthorization(PlatformAdminPolicy);
 
@@ -100,7 +98,7 @@ public static class PlatformTenants
                 var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == id, ct);
                 if (tenant is null)
                 {
-                    return TenantErrors.NotFound.ToProblem();
+                    return TenantErrors.NotFound.ToError();
                 }
 
                 tenant.ChangeStatus(status);

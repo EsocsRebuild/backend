@@ -32,7 +32,7 @@ public sealed class Announcement : TenantAggregateRoot
     public string? LinkUrl { get; private set; }
     public AnnouncementAudience Audience { get; private set; }
     public Guid? GroupId { get; private set; }
-    public Guid? BranchId { get; private set; }
+    public Guid? UnitId { get; private set; }
     public DateTimeOffset PublishAt { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
     public bool IsPinned { get; private set; }
@@ -40,7 +40,7 @@ public sealed class Announcement : TenantAggregateRoot
 
     public static Announcement Create(string title, string body) => new() { Title = title.Trim(), Body = body, Status = AnnouncementStatus.Draft };
 
-    public void Update(string title, string body, string? imageUrl, string? linkUrl, AnnouncementAudience audience, Guid? groupId, Guid? branchId,
+    public void Update(string title, string body, string? imageUrl, string? linkUrl, AnnouncementAudience audience, Guid? groupId, Guid? unitId,
         DateTimeOffset publishAt, DateTimeOffset? expiresAt, bool isPinned)
     {
         if (audience == AnnouncementAudience.Group && groupId is null)
@@ -59,7 +59,7 @@ public sealed class Announcement : TenantAggregateRoot
         LinkUrl = linkUrl;
         Audience = audience;
         GroupId = audience == AnnouncementAudience.Group ? groupId : null;
-        BranchId = branchId;
+        UnitId = unitId;
         PublishAt = publishAt;
         ExpiresAt = expiresAt;
         IsPinned = isPinned;
@@ -173,7 +173,7 @@ public sealed record AudienceSpec
 {
     public IReadOnlyList<string>? MembershipStatuses { get; init; }
     public IReadOnlyList<string>? Tags { get; init; }
-    public Guid? BranchId { get; init; }
+    public Guid? UnitId { get; init; }
     public Guid? GroupId { get; init; }
     public IReadOnlyList<Guid>? PersonIds { get; init; }
 }

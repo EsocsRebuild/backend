@@ -6,19 +6,19 @@ namespace Platform.Modules.People.Contracts;
 public sealed record PersonLinkedToAccountIntegrationEvent(Guid TenantId, Guid PersonId, Guid UserId, Guid MembershipId)
     : IntegrationEvent(TenantId);
 
-public sealed record PersonCreatedIntegrationEvent(Guid TenantId, Guid PersonId, string FullName, string MembershipStatus, Guid? BranchId)
+public sealed record PersonCreatedIntegrationEvent(Guid TenantId, Guid PersonId, string FullName, string MembershipStatus, Guid? UnitId)
     : IntegrationEvent(TenantId);
 
 public sealed record PersonMembershipStatusChangedIntegrationEvent(Guid TenantId, Guid PersonId, string From, string To)
     : IntegrationEvent(TenantId);
 
-public sealed record PersonSummary(Guid Id, string MemberNumber, string FullName, string? Email, string? PhoneNumber, string? PhotoUrl, Guid? BranchId, Guid? UserId);
+public sealed record PersonSummary(Guid Id, string MemberNumber, string FullName, string? Email, string? PhoneNumber, string? PhotoUrl, Guid? UnitId, Guid? UserId);
 
 /// <summary>Audience selection for communications. All criteria combine with AND; empty lists mean "any".</summary>
 public sealed record AudienceFilter(
     IReadOnlyList<string>? MembershipStatuses = null,
     IReadOnlyList<string>? Tags = null,
-    Guid? BranchId = null,
+    Guid? UnitId = null,
     IReadOnlyList<Guid>? PersonIds = null,
     bool RequireConsent = true);
 

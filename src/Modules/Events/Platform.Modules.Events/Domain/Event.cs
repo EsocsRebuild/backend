@@ -54,7 +54,7 @@ public sealed class Event : TenantAggregateRoot
     public string? Description { get; private set; }
     public string? CoverImageUrl { get; private set; }
 
-    public Guid? BranchId { get; private set; }
+    public Guid? UnitId { get; private set; }
 
     /// <summary>Owning ministry/group (Groups module id), e.g. a youth meeting.</summary>
     public Guid? GroupId { get; private set; }
@@ -102,7 +102,7 @@ public sealed class Event : TenantAggregateRoot
         Summary = d.Summary;
         Description = d.Description;
         CoverImageUrl = d.CoverImageUrl;
-        BranchId = d.BranchId;
+        UnitId = d.UnitId;
         GroupId = d.GroupId;
         Location = d.Location;
         IsOnline = d.IsOnline;
@@ -167,7 +167,7 @@ public sealed class Event : TenantAggregateRoot
 
 public sealed record EventDetails(
     string Title, string Slug, EventType Type, EventVisibility Visibility, string? Summary, string? Description, string? CoverImageUrl,
-    Guid? BranchId, Guid? GroupId, string? Location, bool IsOnline, string? OnlineUrl, DateTimeOffset StartsAt, DateTimeOffset EndsAt,
+    Guid? UnitId, Guid? GroupId, string? Location, bool IsOnline, string? OnlineUrl, DateTimeOffset StartsAt, DateTimeOffset EndsAt,
     string TimeZone, bool AllDay, string? RecurrenceRule, bool RegistrationEnabled, int? Capacity, DateTimeOffset? RegistrationClosesAt,
     int MaxGuestsPerRegistration);
 

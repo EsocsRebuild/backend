@@ -29,7 +29,7 @@ internal sealed class ValidationFilter<TRequest> : IEndpointFilter
             .GroupBy(e => JsonName(e.PropertyName))
             .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).Distinct().ToArray());
 
-        return Error.Validation("validation_failed", "The request is invalid.", details).ToProblem();
+        return Error.Validation("validation_failed", ApiErrorCodes.DefaultMessage(ApiErrorCodes.Validation), details).ToError();
     }
 
     private static string JsonName(string propertyName) =>
@@ -39,5 +39,5 @@ internal sealed class ValidationFilter<TRequest> : IEndpointFilter
 public static class ValidationFilterExtensions
 {
     public static RouteHandlerBuilder WithValidation<TRequest>(this RouteHandlerBuilder builder) =>
-        builder.AddEndpointFilter<ValidationFilter<TRequest>>().ProducesValidationProblem();
+        builder.AddEndpointFilter<ValidationFilter<TRequest>>();
 }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using Platform.Infrastructure;
 using Platform.Infrastructure.Storage;
 using Platform.Web;
+using Platform.Web.Endpoints;
 using Platform.Web.Middleware;
 using Scalar.AspNetCore;
 using Serilog;
@@ -35,7 +36,7 @@ app.UseSerilogRequestLogging(o => o.EnrichDiagnosticContext = (diag, http) =>
     diag.Set("UserId", http.User.FindFirst("sub")?.Value);
 });
 app.UseExceptionHandler();
-app.UseStatusCodePages();
+app.UseStatusCodePages(Platform.Web.Errors.StatusCodeEnvelope.WriteAsync);
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
 if (!app.Environment.IsDevelopment())
@@ -64,9 +65,10 @@ app.MapScalarApiReference("/docs", o => o.WithTitle("Platform API"));
 app.MapHealthChecks("/health/live", new() { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new() { Predicate = c => c.Tags.Contains("ready") }).AllowAnonymous();
 
+var api = app.MapApi();
 foreach (var module in Modules.All)
 {
-    module.MapEndpoints(app);
+    module.MapEndpoints(api);
 }
 
 await DatabaseInitializer.InitialiseAsync(app);

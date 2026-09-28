@@ -122,44 +122,44 @@ public static class ContentAdminEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var pages = endpoints.MapModuleGroup("content/pages", "Website content");
-        pages.MapGet("/", ListPages).RequirePermission(Permissions.Content.Read).WithSummary("List pages");
-        pages.MapGet("/{id:guid}", GetPage).RequirePermission(Permissions.Content.Read).WithSummary("Get a page");
-        pages.MapPost("/", CreatePage).WithValidation<SavePageRequest>().RequirePermission(Permissions.Content.Write).WithSummary("Create a page (draft)");
-        pages.MapPut("/{id:guid}", UpdatePage).WithValidation<SavePageRequest>().RequirePermission(Permissions.Content.Write).WithSummary("Update a page");
+        pages.MapGet("/", ListPages).RequirePermission(Permissions.Content.View).WithSummary("List pages");
+        pages.MapGet("/{id:guid}", GetPage).RequirePermission(Permissions.Content.View).WithSummary("Get a page");
+        pages.MapPost("/", CreatePage).WithValidation<SavePageRequest>().RequirePermission(Permissions.Content.Manage).WithSummary("Create a page (draft)");
+        pages.MapPut("/{id:guid}", UpdatePage).WithValidation<SavePageRequest>().RequirePermission(Permissions.Content.Manage).WithSummary("Update a page");
         MapLifecycle<Page>(pages);
 
         var posts = endpoints.MapModuleGroup("content/posts", "Website content");
-        posts.MapGet("/", ListPosts).RequirePermission(Permissions.Content.Read).WithSummary("List news & blog posts");
-        posts.MapGet("/{id:guid}", GetPost).RequirePermission(Permissions.Content.Read).WithSummary("Get a post");
-        posts.MapPost("/", CreatePost).WithValidation<SavePostRequest>().RequirePermission(Permissions.Content.Write).WithSummary("Create a post (draft)");
-        posts.MapPut("/{id:guid}", UpdatePost).WithValidation<SavePostRequest>().RequirePermission(Permissions.Content.Write).WithSummary("Update a post");
+        posts.MapGet("/", ListPosts).RequirePermission(Permissions.Content.View).WithSummary("List news & blog posts");
+        posts.MapGet("/{id:guid}", GetPost).RequirePermission(Permissions.Content.View).WithSummary("Get a post");
+        posts.MapPost("/", CreatePost).WithValidation<SavePostRequest>().RequirePermission(Permissions.Content.Manage).WithSummary("Create a post (draft)");
+        posts.MapPut("/{id:guid}", UpdatePost).WithValidation<SavePostRequest>().RequirePermission(Permissions.Content.Manage).WithSummary("Update a post");
         MapLifecycle<Post>(posts);
 
         var sermons = endpoints.MapModuleGroup("content/sermons", "Sermons");
-        sermons.MapGet("/", ListSermons).RequirePermission(Permissions.Content.Read).WithSummary("List sermons");
-        sermons.MapGet("/{id:guid}", GetSermon).RequirePermission(Permissions.Content.Read).WithSummary("Get a sermon");
-        sermons.MapPost("/", CreateSermon).WithValidation<SaveSermonRequest>().RequirePermission(Permissions.Content.Write).WithSummary("Add a sermon (draft)");
-        sermons.MapPut("/{id:guid}", UpdateSermon).WithValidation<SaveSermonRequest>().RequirePermission(Permissions.Content.Write).WithSummary("Update a sermon");
+        sermons.MapGet("/", ListSermons).RequirePermission(Permissions.Content.View).WithSummary("List sermons");
+        sermons.MapGet("/{id:guid}", GetSermon).RequirePermission(Permissions.Content.View).WithSummary("Get a sermon");
+        sermons.MapPost("/", CreateSermon).WithValidation<SaveSermonRequest>().RequirePermission(Permissions.Content.Manage).WithSummary("Add a sermon (draft)");
+        sermons.MapPut("/{id:guid}", UpdateSermon).WithValidation<SaveSermonRequest>().RequirePermission(Permissions.Content.Manage).WithSummary("Update a sermon");
         MapLifecycle<Sermon>(sermons);
 
         var series = endpoints.MapModuleGroup("content/series", "Sermons");
-        series.MapGet("/", ListSeries).RequirePermission(Permissions.Content.Read).WithSummary("Sermon series");
+        series.MapGet("/", ListSeries).RequirePermission(Permissions.Content.View).WithSummary("Sermon series");
         series.MapPost("/", (SaveSeriesRequest r, ContentDbContext db, CancellationToken ct) => SaveSeries(null, r, db, ct))
-            .RequirePermission(Permissions.Content.Write).WithSummary("Create a series");
+            .RequirePermission(Permissions.Content.Manage).WithSummary("Create a series");
         series.MapPut("/{id:guid}", (Guid id, SaveSeriesRequest r, ContentDbContext db, CancellationToken ct) => SaveSeries(id, r, db, ct))
-            .RequirePermission(Permissions.Content.Write).WithSummary("Update a series");
+            .RequirePermission(Permissions.Content.Manage).WithSummary("Update a series");
 
         var media = endpoints.MapModuleGroup("content/media", "Media library");
-        media.MapGet("/", ListMedia).RequirePermission(Permissions.Content.Read).WithSummary("Browse the media library");
-        media.MapPost("/", Upload).RequirePermission(Permissions.Content.MediaManage).DisableAntiforgery()
+        media.MapGet("/", ListMedia).RequirePermission(Permissions.Content.View).WithSummary("Browse the media library");
+        media.MapPost("/", Upload).RequirePermission(Permissions.Content.Manage).DisableAntiforgery()
             .WithSummary("Upload a file (multipart/form-data, max 50 MB)");
-        media.MapPut("/{id:guid}", DescribeMedia).RequirePermission(Permissions.Content.MediaManage).WithSummary("Set alt text / folder");
-        media.MapDelete("/{id:guid}", DeleteMedia).RequirePermission(Permissions.Content.MediaManage).WithSummary("Delete a file");
+        media.MapPut("/{id:guid}", DescribeMedia).RequirePermission(Permissions.Content.Manage).WithSummary("Set alt text / folder");
+        media.MapDelete("/{id:guid}", DeleteMedia).RequirePermission(Permissions.Content.Manage).WithSummary("Delete a file");
 
         var menus = endpoints.MapModuleGroup("content/menus", "Website content");
         menus.MapGet("/", async (ContentDbContext db, CancellationToken ct) => Results.Ok((await db.Menus.AsNoTracking().OrderBy(m => m.Key).ToListAsync(ct)).Select(ToResponse)))
-            .RequirePermission(Permissions.Content.Read).WithSummary("List menus");
-        menus.MapPut("/{key}", SaveMenu).RequirePermission(Permissions.Content.MenusManage).WithSummary("Create or replace a menu (e.g. main, footer)");
+            .RequirePermission(Permissions.Content.View).WithSummary("List menus");
+        menus.MapPut("/{key}", SaveMenu).RequirePermission(Permissions.Content.Manage).WithSummary("Create or replace a menu (e.g. main, footer)");
     }
 
     /// <summary>Publish / schedule / unpublish / archive / delete — identical for every publishable type.</summary>
@@ -181,14 +181,14 @@ public static class ContentAdminEndpoints
                 var item = await db.Set<T>().FirstOrDefaultAsync(x => x.Id == id, ct);
                 if (item is null)
                 {
-                    return NotFound.ToProblem();
+                    return NotFound.ToError();
                 }
 
                 db.Remove(item);
                 await db.SaveChangesAsync(ct);
                 return Results.NoContent();
             })
-            .RequirePermission(Permissions.Content.Delete).WithSummary("Delete (soft)");
+            .RequirePermission(Permissions.Content.Manage).WithSummary("Delete (soft)");
     }
 
     private static async Task<IResult> Mutate<T>(Guid id, ContentDbContext db, Action<T> action, CancellationToken ct) where T : PublishableContent
@@ -196,7 +196,7 @@ public static class ContentAdminEndpoints
         var item = await db.Set<T>().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (item is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         action(item);
@@ -220,7 +220,7 @@ public static class ContentAdminEndpoints
     }
 
     private static async Task<IResult> GetPage(Guid id, ContentDbContext db, CancellationToken ct) =>
-        await db.Pages.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct) is { } p ? Results.Ok(ToResponse(p)) : NotFound.ToProblem();
+        await db.Pages.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct) is { } p ? Results.Ok(ToResponse(p)) : NotFound.ToError();
 
     private static Task<IResult> CreatePage(SavePageRequest r, ContentDbContext db, CancellationToken ct) => SavePage(null, r, db, ct);
 
@@ -235,14 +235,14 @@ public static class ContentAdminEndpoints
             parentPath = await db.Pages.Where(p => p.Id == parentId).Select(p => p.Path).FirstOrDefaultAsync(ct) ?? "";
             if (parentPath.Length == 0)
             {
-                return Error.Validation("page.invalid_parent", "The parent page does not exist.").ToProblem();
+                return Error.Validation("page.invalid_parent", "The parent page does not exist.").ToError();
             }
         }
 
         var path = slug == "home" && r.ParentId is null ? "/" : $"{parentPath.TrimEnd('/')}/{slug}";
         if (await db.Pages.AnyAsync(p => p.Path == path && p.Id != id, ct))
         {
-            return SlugTaken.ToProblem();
+            return SlugTaken.ToError();
         }
 
         Page page;
@@ -256,7 +256,7 @@ public static class ContentAdminEndpoints
             var existing = await db.Pages.FirstOrDefaultAsync(p => p.Id == id, ct);
             if (existing is null)
             {
-                return NotFound.ToProblem();
+                return NotFound.ToError();
             }
 
             page = existing;
@@ -297,7 +297,7 @@ public static class ContentAdminEndpoints
     }
 
     private static async Task<IResult> GetPost(Guid id, ContentDbContext db, CancellationToken ct) =>
-        await db.Posts.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct) is { } p ? Results.Ok(ToResponse(p)) : NotFound.ToProblem();
+        await db.Posts.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct) is { } p ? Results.Ok(ToResponse(p)) : NotFound.ToError();
 
     private static Task<IResult> CreatePost(SavePostRequest r, ContentDbContext db, CancellationToken ct) => SavePost(null, r, db, ct);
 
@@ -308,13 +308,13 @@ public static class ContentAdminEndpoints
         var slug = r.Slug ?? Slug.From(r.Title);
         if (await db.Posts.AnyAsync(p => p.Slug == slug && p.Id != id, ct))
         {
-            return SlugTaken.ToProblem();
+            return SlugTaken.ToError();
         }
 
         Post? post = id is null ? Post.Create(r.Title, slug) : await db.Posts.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (post is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         if (id is null)
@@ -363,7 +363,7 @@ public static class ContentAdminEndpoints
         var sermon = await db.Sermons.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (sermon is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         var titles = await SeriesTitlesAsync(db, [sermon], ct);
@@ -379,18 +379,18 @@ public static class ContentAdminEndpoints
         var slug = r.Slug ?? Slug.From($"{r.PreachedOn:yyyy-MM-dd} {r.Title}");
         if (await db.Sermons.AnyAsync(s => s.Slug == slug && s.Id != id, ct))
         {
-            return SlugTaken.ToProblem();
+            return SlugTaken.ToError();
         }
 
         if (r.SeriesId is { } seriesId && !await db.Series.AnyAsync(s => s.Id == seriesId, ct))
         {
-            return Error.Validation("sermon.invalid_series", "The series does not exist.").ToProblem();
+            return Error.Validation("sermon.invalid_series", "The series does not exist.").ToError();
         }
 
         Sermon? sermon = id is null ? Sermon.Create(r.Title, slug, r.Preacher, r.PreachedOn) : await db.Sermons.FirstOrDefaultAsync(s => s.Id == id, ct);
         if (sermon is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         if (id is null)
@@ -413,19 +413,19 @@ public static class ContentAdminEndpoints
     {
         if (string.IsNullOrWhiteSpace(r.Title) || !ContentRules.BeValidSlug(r.Slug))
         {
-            return Error.Validation("series.invalid", "A title and a valid slug are required.").ToProblem();
+            return Error.Validation("series.invalid", "A title and a valid slug are required.").ToError();
         }
 
         var slug = r.Slug ?? Slug.From(r.Title);
         if (await db.Series.AnyAsync(s => s.Slug == slug && s.Id != id, ct))
         {
-            return SlugTaken.ToProblem();
+            return SlugTaken.ToError();
         }
 
         SermonSeries? series = id is null ? SermonSeries.Create(r.Title, slug) : await db.Series.FirstOrDefaultAsync(s => s.Id == id, ct);
         if (series is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         if (id is null)
@@ -456,12 +456,12 @@ public static class ContentAdminEndpoints
     {
         if (file.Length is 0 or > MaxUploadBytes)
         {
-            return Error.Validation("media.size", "Files must be between 1 byte and 50 MB.").ToProblem();
+            return Error.Validation("media.size", "Files must be between 1 byte and 50 MB.").ToError();
         }
 
         if (!AllowedMedia.Contains(file.ContentType))
         {
-            return Error.Validation("media.type", $"Unsupported file type '{file.ContentType}'.").ToProblem();
+            return Error.Validation("media.type", $"Unsupported file type '{file.ContentType}'.").ToError();
         }
 
         // Never trust the client file name for the storage path.
@@ -483,7 +483,7 @@ public static class ContentAdminEndpoints
         var asset = await db.Media.FirstOrDefaultAsync(m => m.Id == id, ct);
         if (asset is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         asset.Describe(r.AltText, r.Folder);
@@ -496,7 +496,7 @@ public static class ContentAdminEndpoints
         var asset = await db.Media.FirstOrDefaultAsync(m => m.Id == id, ct);
         if (asset is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         db.Media.Remove(asset);
@@ -513,7 +513,7 @@ public static class ContentAdminEndpoints
     {
         if (!Slug.IsValid(key) || key.Length > 64 || r.Items.ValueKind != JsonValueKind.Array || string.IsNullOrWhiteSpace(r.Name))
         {
-            return Error.Validation("menu.invalid", "A valid key, a name and an items array are required.").ToProblem();
+            return Error.Validation("menu.invalid", "A valid key, a name and an items array are required.").ToError();
         }
 
         var menu = await db.Menus.FirstOrDefaultAsync(m => m.Key == key, ct);

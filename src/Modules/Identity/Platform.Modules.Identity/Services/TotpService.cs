@@ -25,12 +25,16 @@ internal sealed class TotpService(IDataProtectionProvider dataProtection, TimePr
         $"otpauth://totp/{Uri.EscapeDataString(issuer)}:{Uri.EscapeDataString(account)}" +
         $"?secret={base32Secret}&issuer={Uri.EscapeDataString(issuer)}&digits={Digits}&period={StepSeconds}";
 
-    /// <summary>Accepts the current code and one step either side for clock drift.</summary>
-    public bool Verify(string protectedSecret, string code)
+    /// <summary>
+    /// Accepts the current code and one step either side for clock drift. Returns the matched time step
+    /// (so callers can refuse a code that was already used) or null.
+    /// </summary>
+    public long? Verify(string protectedSecret, string code)
     {
+        code = code.Trim().Replace(" ", string.Empty, StringComparison.Ordinal);
         if (code.Length != Digits || !code.All(char.IsAsciiDigit))
         {
-            return false;
+            return null;
         }
 
         var key = Base32Decode(_protector.Unprotect(protectedSecret));
@@ -40,11 +44,18 @@ internal sealed class TotpService(IDataProtectionProvider dataProtection, TimePr
             var candidate = Compute(key, step + offset);
             if (CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(candidate), Encoding.ASCII.GetBytes(code)))
             {
-                return true;
+                return step + offset;
             }
         }
 
-        return false;
+        return null;
+    }
+
+    /// <summary>Normalises a recovery code as typed by a person (case, spaces, missing dash) before hashing.</summary>
+    public static string NormaliseRecoveryCode(string code)
+    {
+        var raw = new string(code.Where(char.IsAsciiLetterOrDigit).ToArray()).ToLowerInvariant();
+        return raw.Length == 10 ? $"{raw[..5]}-{raw[5..]}" : raw;
     }
 
     public static IReadOnlyList<string> GenerateRecoveryCodes(int count = 10) =>

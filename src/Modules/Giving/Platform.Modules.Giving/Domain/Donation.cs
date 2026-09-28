@@ -53,7 +53,7 @@ public sealed class Donation : TenantAggregateRoot
 
     public string? DonorName { get; private set; }
     public string? DonorEmail { get; private set; }
-    public Guid? BranchId { get; private set; }
+    public Guid? UnitId { get; private set; }
     public Guid? BatchId { get; private set; }
 
     /// <summary>Service / event occurrence the offering was received at (Events module id).</summary>
@@ -200,7 +200,7 @@ public sealed class Donation : TenantAggregateRoot
 
     private void ApplyGift(GiftDetails gift)
     {
-        BranchId = gift.BranchId;
+        UnitId = gift.UnitId;
         OccurrenceId = gift.OccurrenceId;
         CampaignId = gift.CampaignId;
         ReceivedOn = gift.ReceivedOn;
@@ -236,7 +236,7 @@ public sealed class Donation : TenantAggregateRoot
 public sealed record DonorInfo(Guid? PersonId, string? Name, string? Email);
 
 public sealed record GiftDetails(
-    DateOnly ReceivedOn, PaymentMethod Method, GivingChannel Channel, string Currency, Guid? BranchId, Guid? OccurrenceId,
+    DateOnly ReceivedOn, PaymentMethod Method, GivingChannel Channel, string Currency, Guid? UnitId, Guid? OccurrenceId,
     Guid? CampaignId, string? Reference, string? Notes);
 
 /// <summary>The portion of a donation credited to one fund.</summary>

@@ -16,7 +16,7 @@ using Platform.Web.Security;
 namespace Platform.Modules.Groups.Features;
 
 public sealed record GroupResponse(
-    Guid Id, string Name, string Slug, string Type, string Visibility, Guid? ParentGroupId, Guid? BranchId, string? Description,
+    Guid Id, string Name, string Slug, string Type, string Visibility, Guid? ParentGroupId, Guid? UnitId, string? Description,
     string? ImageUrl, string? MeetingSchedule, string? MeetingLocation, int? Capacity, bool IsActive, bool AcceptsJoinRequests,
     int MemberCount, IReadOnlyList<GroupLeaderResponse> Leaders);
 
@@ -26,12 +26,12 @@ public sealed record GroupMemberResponse(Guid PersonId, string FullName, string?
     string Role, string Status, DateOnly JoinedOn);
 
 public sealed record SaveGroupRequest(
-    string Name, string? Slug, GroupType Type, GroupVisibility Visibility, Guid? ParentGroupId, Guid? BranchId, string? Description,
+    string Name, string? Slug, GroupType Type, GroupVisibility Visibility, Guid? ParentGroupId, Guid? UnitId, string? Description,
     string? ImageUrl, string? MeetingSchedule, string? MeetingLocation, int? Capacity, bool IsActive = true, bool AcceptsJoinRequests = false);
 
 public sealed record AddGroupMemberRequest(Guid PersonId, GroupMemberRole Role = GroupMemberRole.Member, GroupMemberStatus Status = GroupMemberStatus.Active);
 
-public sealed record GroupQuery(int Page = 1, int PageSize = 50, string? Search = null, GroupType? Type = null, Guid? BranchId = null,
+public sealed record GroupQuery(int Page = 1, int PageSize = 50, string? Search = null, GroupType? Type = null, Guid? UnitId = null,
     Guid? ParentGroupId = null, bool IncludeInactive = false);
 
 public sealed record PublicGroupResponse(Guid Id, string Name, string Slug, string Type, string? Description, string? ImageUrl,
@@ -58,17 +58,17 @@ public static class GroupEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapModuleGroup("groups", "Groups & ministries");
-        group.MapGet("/", List).RequirePermission(Permissions.Groups.Read).WithSummary("List groups");
-        group.MapGet("/{id:guid}", Get).RequirePermission(Permissions.Groups.Read).WithSummary("Get a group");
-        group.MapPost("/", Create).WithValidation<SaveGroupRequest>().RequirePermission(Permissions.Groups.Write).WithSummary("Create a group");
-        group.MapPut("/{id:guid}", Update).WithValidation<SaveGroupRequest>().RequirePermission(Permissions.Groups.Write).WithSummary("Update a group");
-        group.MapDelete("/{id:guid}", Delete).RequirePermission(Permissions.Groups.Delete).WithSummary("Archive a group");
-        group.MapGet("/{id:guid}/members", ListMembers).RequirePermission(Permissions.Groups.Read).WithSummary("Group roster");
-        group.MapPost("/{id:guid}/members", AddMember).RequirePermission(Permissions.Groups.MembersManage).WithSummary("Add or update a member");
-        group.MapDelete("/{id:guid}/members/{personId:guid}", RemoveMember).RequirePermission(Permissions.Groups.MembersManage).WithSummary("Remove a member");
-        group.MapGet("/by-person/{personId:guid}", ByPerson).RequirePermission(Permissions.Groups.Read).WithSummary("Groups a person belongs to");
+        group.MapGet("/", List).RequirePermission(Permissions.Groups.View).WithSummary("List groups");
+        group.MapGet("/{id:guid}", Get).RequirePermission(Permissions.Groups.View).WithSummary("Get a group");
+        group.MapPost("/", Create).WithValidation<SaveGroupRequest>().RequirePermission(Permissions.Groups.Manage).WithSummary("Create a group");
+        group.MapPut("/{id:guid}", Update).WithValidation<SaveGroupRequest>().RequirePermission(Permissions.Groups.Manage).WithSummary("Update a group");
+        group.MapDelete("/{id:guid}", Delete).RequirePermission(Permissions.Groups.Manage).WithSummary("Archive a group");
+        group.MapGet("/{id:guid}/members", ListMembers).RequirePermission(Permissions.Groups.View).WithSummary("Group roster");
+        group.MapPost("/{id:guid}/members", AddMember).RequirePermission(Permissions.Groups.Manage).WithSummary("Add or update a member");
+        group.MapDelete("/{id:guid}/members/{personId:guid}", RemoveMember).RequirePermission(Permissions.Groups.Manage).WithSummary("Remove a member");
+        group.MapGet("/by-person/{personId:guid}", ByPerson).RequirePermission(Permissions.Groups.View).WithSummary("Groups a person belongs to");
 
-        endpoints.MapGroup($"{EndpointExtensions.ApiPrefix}/me/groups").WithTags("My account").RequireAuthorization()
+        endpoints.MapGroup("me/groups").WithTags("My account").RequireAuthorization()
             .MapGet("/", MyGroups).WithSummary("Groups I belong to");
 
         endpoints.MapPublicGroup("groups", "Public")
@@ -82,7 +82,7 @@ public static class GroupEndpoints
         if (!q.IncludeInactive) query = query.Where(g => g.IsActive);
         if (!string.IsNullOrWhiteSpace(q.Search)) query = query.Where(g => EF.Functions.ILike(g.Name, $"%{q.Search.Trim()}%"));
         if (q.Type is { } type) query = query.Where(g => g.Type == type);
-        if (q.BranchId is { } branchId) query = query.Where(g => g.BranchId == branchId);
+        if (q.UnitId is { } unitId) query = query.Where(g => g.UnitId == unitId);
         if (q.ParentGroupId is { } parentId) query = query.Where(g => g.ParentGroupId == parentId);
 
         var total = await query.LongCountAsync(ct);
@@ -94,7 +94,7 @@ public static class GroupEndpoints
     private static async Task<IResult> Get(Guid id, GroupsDbContext db, IPeopleDirectory people, CancellationToken ct)
     {
         var entity = await db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == id, ct);
-        return entity is null ? NotFound.ToProblem() : Results.Ok((await ToResponsesAsync(db, people, [entity], ct))[0]);
+        return entity is null ? NotFound.ToError() : Results.Ok((await ToResponsesAsync(db, people, [entity], ct))[0]);
     }
 
     private static async Task<IResult> Create(SaveGroupRequest r, GroupsDbContext db, IPeopleDirectory people, CancellationToken ct)
@@ -102,7 +102,7 @@ public static class GroupEndpoints
         var slug = r.Slug ?? Slug.From(r.Name);
         if (await db.Groups.AnyAsync(g => g.Slug == slug, ct))
         {
-            return SlugTaken.ToProblem();
+            return SlugTaken.ToError();
         }
 
         var entity = Group.Create(r.Name, slug, r.Type);
@@ -117,18 +117,18 @@ public static class GroupEndpoints
         var entity = await db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
         if (entity is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         var slug = r.Slug ?? entity.Slug;
         if (await db.Groups.AnyAsync(g => g.Slug == slug && g.Id != id, ct))
         {
-            return SlugTaken.ToProblem();
+            return SlugTaken.ToError();
         }
 
         if (r.ParentGroupId is { } parentId && await CreatesCycleAsync(db, id, parentId, ct))
         {
-            return Error.Validation("group.cycle", "A group cannot be nested inside one of its own sub-groups.").ToProblem();
+            return Error.Validation("group.cycle", "A group cannot be nested inside one of its own sub-groups.").ToError();
         }
 
         Apply(entity, r, slug);
@@ -137,7 +137,7 @@ public static class GroupEndpoints
     }
 
     private static void Apply(Group entity, SaveGroupRequest r, string slug) =>
-        entity.Update(r.Name, slug, r.Type, r.Visibility, r.ParentGroupId, r.BranchId, r.Description, r.ImageUrl, r.MeetingSchedule,
+        entity.Update(r.Name, slug, r.Type, r.Visibility, r.ParentGroupId, r.UnitId, r.Description, r.ImageUrl, r.MeetingSchedule,
             r.MeetingLocation, r.Capacity, r.IsActive, r.AcceptsJoinRequests);
 
     private static async Task<bool> CreatesCycleAsync(GroupsDbContext db, Guid groupId, Guid parentId, CancellationToken ct)
@@ -161,12 +161,12 @@ public static class GroupEndpoints
         var entity = await db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
         if (entity is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         if (await db.Groups.AnyAsync(g => g.ParentGroupId == id, ct))
         {
-            return Error.Conflict("group.has_children", "Move or archive the sub-groups first.").ToProblem();
+            return Error.Conflict("group.has_children", "Move or archive the sub-groups first.").ToError();
         }
 
         db.Groups.Remove(entity);
@@ -192,12 +192,12 @@ public static class GroupEndpoints
         var entity = await db.Groups.Include(g => g.Members).FirstOrDefaultAsync(g => g.Id == id, ct);
         if (entity is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         if ((await people.GetSummariesAsync([r.PersonId], ct)).Count == 0)
         {
-            return Error.NotFound("person.not_found", "The person was not found.").ToProblem();
+            return Error.NotFound("person.not_found", "The person was not found.").ToError();
         }
 
         entity.AddMember(r.PersonId, r.Role, r.Status, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime));
@@ -210,7 +210,7 @@ public static class GroupEndpoints
         var entity = await db.Groups.Include(g => g.Members).FirstOrDefaultAsync(g => g.Id == id, ct);
         if (entity is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         entity.RemoveMember(personId);
@@ -259,7 +259,7 @@ public static class GroupEndpoints
         var summaries = await people.GetSummariesAsync(leaders.Select(l => l.PersonId), ct);
 
         return groups.Select(g => new GroupResponse(
-            g.Id, g.Name, g.Slug, g.Type.ToString(), g.Visibility.ToString(), g.ParentGroupId, g.BranchId, g.Description, g.ImageUrl,
+            g.Id, g.Name, g.Slug, g.Type.ToString(), g.Visibility.ToString(), g.ParentGroupId, g.UnitId, g.Description, g.ImageUrl,
             g.MeetingSchedule, g.MeetingLocation, g.Capacity, g.IsActive, g.AcceptsJoinRequests, counts.GetValueOrDefault(g.Id),
             leaders.Where(l => l.GroupId == g.Id && summaries.ContainsKey(l.PersonId))
                 .Select(l => new GroupLeaderResponse(l.PersonId, summaries[l.PersonId].FullName, l.Role.ToString(), summaries[l.PersonId].PhotoUrl))

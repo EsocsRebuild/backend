@@ -8,20 +8,25 @@ public static class EndpointExtensions
 {
     public const string ApiPrefix = "/api/v1";
 
-    /// <summary>Creates the versioned route group for a module's admin/member API.</summary>
+    /// <summary>
+    /// Root group every module maps onto: versioned prefix plus the response envelope.
+    /// Modules receive this builder, so their routes are relative ("members", "public/forms"…).
+    /// </summary>
+    public static RouteGroupBuilder MapApi(this IEndpointRouteBuilder endpoints) =>
+        endpoints.MapGroup(ApiPrefix).AddEndpointFilter<EnvelopeFilter>();
+
+    /// <summary>Authenticated staff / member API for a module.</summary>
     public static RouteGroupBuilder MapModuleGroup(this IEndpointRouteBuilder endpoints, string path, string tag) =>
-        endpoints.MapGroup($"{ApiPrefix}/{path.Trim('/')}")
+        endpoints.MapGroup(path.Trim('/'))
             .WithTags(tag)
-            .RequireAuthorization()
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden);
+            .RequireAuthorization();
 
     /// <summary>
-    /// Creates the versioned route group for the anonymous public API consumed by the website
-    /// and mobile app. The tenant is resolved from the X-Tenant header or the request host.
+    /// Anonymous public API consumed by the website, mobile app and public form pages. The
+    /// organisation is resolved from the X-Tenant header or the request host.
     /// </summary>
     public static RouteGroupBuilder MapPublicGroup(this IEndpointRouteBuilder endpoints, string path, string tag) =>
-        endpoints.MapGroup($"{ApiPrefix}/public/{path.Trim('/')}")
+        endpoints.MapGroup(("public/" + path.Trim('/')).TrimEnd('/'))
             .WithTags(tag)
             .AllowAnonymous()
             .RequireRateLimiting("public");
