@@ -59,13 +59,23 @@ public static class TemplateEndpoints
             .WithSummary("Delete email template");
     }
 
+    private static readonly JsonElement DefaultDocument =
+        JsonDocument.Parse("{\"version\":1,\"settings\":{\"accentColor\":\"#2f4fb4\",\"background\":\"muted\"},\"blocks\":[]}").RootElement;
+
     private static TemplateResponse ToResponse(EmailTemplate t)
     {
-        JsonElement? content = null;
+        JsonElement content = DefaultDocument;
         if (!string.IsNullOrWhiteSpace(t.ContentJson))
         {
-            try { content = JsonDocument.Parse(t.ContentJson).RootElement.Clone(); }
-            catch { content = null; }
+            try
+            {
+                var parsed = JsonDocument.Parse(t.ContentJson).RootElement;
+                if (parsed.ValueKind == JsonValueKind.Object && parsed.TryGetProperty("settings", out _))
+                {
+                    content = parsed.Clone();
+                }
+            }
+            catch { }
         }
 
         var updatedBy = t.UpdatedById.HasValue && !string.IsNullOrWhiteSpace(t.UpdatedByName)

@@ -147,13 +147,23 @@ public static class CampaignEndpoints
         return new CampaignSummaryResponse(c.Id, c.Name, c.Subject, c.Status, c.RecipientCount, c.ScheduledAt, c.SentAt, ParseStats(c.StatsJson), c.UpdatedAt ?? c.CreatedAt, createdBy);
     }
 
+    private static readonly JsonElement DefaultDocument =
+        JsonDocument.Parse("{\"version\":1,\"settings\":{\"accentColor\":\"#2f4fb4\",\"background\":\"muted\"},\"blocks\":[]}").RootElement;
+
     private static CampaignResponse ToResponse(EmailCampaign c)
     {
-        JsonElement? content = null;
+        JsonElement content = DefaultDocument;
         if (!string.IsNullOrWhiteSpace(c.ContentJson))
         {
-            try { content = JsonDocument.Parse(c.ContentJson).RootElement.Clone(); }
-            catch { content = null; }
+            try
+            {
+                var parsed = JsonDocument.Parse(c.ContentJson).RootElement;
+                if (parsed.ValueKind == JsonValueKind.Object && parsed.TryGetProperty("settings", out _))
+                {
+                    content = parsed.Clone();
+                }
+            }
+            catch { }
         }
 
         var createdBy = c.CreatedById.HasValue && !string.IsNullOrWhiteSpace(c.CreatedByName)
