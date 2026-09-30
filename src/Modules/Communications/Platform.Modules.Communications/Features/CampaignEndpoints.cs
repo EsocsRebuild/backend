@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -14,7 +15,19 @@ using Platform.Web.Security;
 
 namespace Platform.Modules.Communications.Features;
 
-public sealed record CampaignAudienceSpec(IReadOnlyList<string> ListIds);
+public sealed class CampaignAudienceSpec
+{
+    [JsonPropertyName("listIds")]
+    public IReadOnlyList<string> ListIds { get; init; } = [];
+
+    public CampaignAudienceSpec() { }
+
+    [JsonConstructor]
+    public CampaignAudienceSpec(IReadOnlyList<string>? listIds)
+    {
+        ListIds = listIds ?? [];
+    }
+}
 
 public sealed record CampaignStats(
     int Sent,
@@ -132,10 +145,20 @@ public static class CampaignEndpoints
         catch { return null; }
     }
 
-    private static CampaignAudienceSpec ParseAudience(string json)
+    private static readonly JsonSerializerOptions CamelCaseOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    private static CampaignAudienceSpec ParseAudience(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return new CampaignAudienceSpec([]);
-        try { return JsonSerializer.Deserialize<CampaignAudienceSpec>(json) ?? new CampaignAudienceSpec([]); }
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<CampaignAudienceSpec>(json, CamelCaseOptions);
+            return new CampaignAudienceSpec(parsed?.ListIds ?? []);
+        }
         catch { return new CampaignAudienceSpec([]); }
     }
 
@@ -231,7 +254,8 @@ public static class CampaignEndpoints
         }
 
         var contentJson = req.Content.HasValue ? req.Content.Value.GetRawText() : "{}";
-        var campaign = EmailCampaign.Create(req.Name, null, contentJson, null, user.UserId, user.UserId?.ToString());
+        var audJson = JsonSerializer.Serialize(new CampaignAudienceSpec([]), CamelCaseOptions);
+        var campaign = EmailCampaign.Create(req.Name, null, contentJson, audJson, user.UserId, user.UserId?.ToString());
         db.Campaigns.Add(campaign);
         await db.SaveChangesAsync(ct);
         return Results.Ok(ToResponse(campaign));
@@ -246,7 +270,7 @@ public static class CampaignEndpoints
             return Error.Conflict("campaign.not_draft", "Only draft campaigns can be edited.").ToError();
         }
 
-        var audJson = req.Audience != null ? JsonSerializer.Serialize(req.Audience) : null;
+        var audJson = req.Audience != null ? JsonSerializer.Serialize(new CampaignAudienceSpec(req.Audience.ListIds), CamelCaseOptions) : null;
         var contentJson = req.Content.HasValue ? req.Content.Value.GetRawText() : null;
 
         c.UpdateDraft(
