@@ -95,5 +95,6 @@ public sealed class IdentityModule : IModule
         AdministrationEndpoints.Map(endpoints);
         AuditEndpoints.Map(endpoints);
         ApiKeyEndpoints.Map(endpoints);
+        SwitchTenantEndpoints.Map(endpoints);
     }
 }

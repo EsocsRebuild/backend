@@ -33,12 +33,33 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Database: Host=db;Port=5432;Database=platform_dev;Username=postgres;Password=postgres
       ConnectionStrings__Redis: redis:6379
+      # JWT signing key — override with a secret from your vault in production.
+      # Local dev value is also in appsettings.Development.json; keep them in sync.
+      Auth__SigningKey: dev-only-signing-key-change-me-0123456789abcdef
+      Auth__Issuer: "http://localhost:5080"
+      Auth__AppBaseUrl: "http://localhost:3001"
+      Auth__TotpIssuer: "ESOCS Admin (dev)"
+      # Allow the admin portal (3001) and the public website (3000).
+      Cors__AllowedOrigins__0: "http://localhost:3000"
+      Cors__AllowedOrigins__1: "http://localhost:3001"
       Email__Provider: Smtp
       Email__SmtpHost: mailpit
       Email__SmtpPort: "1025"
       Email__UseStartTls: "false"
+      Database__MigrateOnStartup: "true"
+      Seed__Enabled: "true"
+      Seed__TenantSlug: "esocs"
+      Seed__TenantName: "Eternal Sacred Order of Cherubim & Seraphim"
+      Seed__OwnerEmail: "admin@esocs.test"
+      Seed__OwnerPassword: "Preview-Password-2026"
+      Tenancy__DefaultTenant: "esocs"
+      # Raise rate limits so heavy local testing isn't blocked.
+      RateLimits__AuthPerMinute: "500"
+      RateLimits__PublicPerMinute: "2000"
+      RateLimits__UserPerMinute: "5000"
     volumes: [storage:/app/storage]
 
 volumes:
   pgdata:
   storage:
+

@@ -101,7 +101,7 @@ public static class GivingManagementEndpoints
         funds.MapPost("/", CreateFund).WithValidation<SaveFundRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Create a fund");
         funds.MapPut("/{id:guid}", UpdateFund).WithValidation<SaveFundRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Update a fund");
 
-        var campaigns = endpoints.MapModuleGroup("campaigns", "Giving");
+        var campaigns = endpoints.MapModuleGroup("giving/campaigns", "Giving");
         campaigns.MapGet("/", ListCampaigns).RequirePermission(Permissions.Giving.View).WithSummary("Campaigns with progress");
         campaigns.MapPost("/", CreateCampaign).WithValidation<SaveCampaignRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Create a campaign");
         campaigns.MapPut("/{id:guid}", UpdateCampaign).WithValidation<SaveCampaignRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Update a campaign");

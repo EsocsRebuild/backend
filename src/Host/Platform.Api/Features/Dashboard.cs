@@ -1,3 +1,4 @@
+using Platform.Application.Abstractions;
 using Platform.Application.Security;
 using Platform.Modules.Identity.Contracts;
 using Platform.Modules.People.Contracts;
@@ -8,36 +9,13 @@ namespace Platform.Api.Features;
 
 public sealed record MemberSection(long Total, long NewThisMonth, double? Delta, IReadOnlyList<long> Trend);
 
-public sealed record AudienceSection(long Subscribers, double? Delta, IReadOnlyList<long> Trend);
-
-public sealed record CampaignSection(int SentLast30Days, double? AverageOpenRate);
-
-public sealed record FormSection(int ResponsesLast30Days, int LiveForms);
-
 public sealed record PendingSection(int AccessRequests, long MemberApprovals, int ScheduledCampaigns);
 
 public sealed record SetupSection(bool DomainVerified, bool HasAudience, bool HasForm, bool PostalAddressSet);
 
-public sealed record DashboardSummary(MemberSection? Members, AudienceSection? Audience, CampaignSection? Campaigns, FormSection? Forms,
+public sealed record DashboardSummary(MemberSection? Members, AudienceDashboardSection? Audience, CampaignDashboardSection? Campaigns, FormDashboardSection? Forms,
     PendingSection Pending, SetupSection Setup);
 
-/// <summary>Contributes a dashboard section from a module that isn't known to the host at compile time (email, forms…).</summary>
-public interface IDashboardContributor
-{
-    Task ContributeAsync(DashboardBuilder builder, AccessProfile access, CancellationToken cancellationToken);
-}
-
-public sealed class DashboardBuilder
-{
-    public AudienceSection? Audience { get; set; }
-    public CampaignSection? Campaigns { get; set; }
-    public FormSection? Forms { get; set; }
-    public int ScheduledCampaigns { get; set; }
-    public bool DomainVerified { get; set; }
-    public bool HasAudience { get; set; }
-    public bool HasForm { get; set; }
-    public bool PostalAddressSet { get; set; }
-}
 
 /// <summary>
 /// <c>GET /dashboard/summary</c> (API contract §6). Composed from each module's read-only contracts;

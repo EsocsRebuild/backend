@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Platform.Application.Messaging;
 using Platform.Application.Tenancy;
 using Platform.Infrastructure.Modules;
+using Platform.Modules.Communications.Domain;
+using Platform.Modules.Communications.Infrastructure;
 using Platform.Modules.Identity.Domain;
 using Platform.Modules.Identity.Features;
 using Platform.Modules.Identity.Infrastructure;
@@ -108,6 +110,100 @@ internal static partial class DatabaseInitializer
         }
 
         await SeedParishesAsync(services, seed);
+        await SeedCommunicationsAsync(services, seed);
+    }
+
+    private static async Task SeedCommunicationsAsync(IServiceProvider services, SeedOptions seed)
+    {
+        var comms = services.GetRequiredService<CommunicationsDbContext>();
+        var tenancy = services.GetRequiredService<TenancyDbContext>();
+        var tenantId = await tenancy.Tenants.Where(t => t.Slug == seed.TenantSlug).Select(t => t.Id).FirstAsync();
+        services.GetRequiredService<ITenantContextSetter>().SetTenant(tenantId);
+
+        if (await comms.Audiences.AnyAsync())
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        // 1. Settings & Domain
+        comms.SendingSettings.Add(SendingSettings.Create(seed.TenantName, "ESOCS Communications", "news@esocs.org", "53 Chatham Street, London SE17 1PA"));
+        comms.SendingDomains.Add(SendingDomain.Create("esocs.org", "[]"));
+        var domain = await comms.SendingDomains.FirstOrDefaultAsync(d => d.Domain == "esocs.org");
+        domain?.Verify(now);
+
+        // 2. Audiences
+        var audNews = AudienceList.Create("Church newsletter", "Weekly updates for the whole congregation", true);
+        var audYouth = AudienceList.Create("Youth fellowship", "Events and news for under-30s", true);
+        comms.Audiences.AddRange(audNews, audYouth);
+        await comms.SaveChangesAsync();
+
+        // 3. Contacts
+        for (int i = 1; i <= 25; i++)
+        {
+            comms.Contacts.Add(AudienceContact.Create(audNews.Id, $"member{i}@example.org", $"Member{i}", "Test", "subscribed", "import", null, now.AddDays(-i)));
+        }
+        for (int i = 1; i <= 10; i++)
+        {
+            comms.Contacts.Add(AudienceContact.Create(audYouth.Id, $"youth{i}@example.org", $"Youth{i}", "Test", "subscribed", "import", null, now.AddDays(-i)));
+        }
+
+        // 4. Template
+        comms.EmailTemplates.Add(EmailTemplate.Create("Monthly newsletter", "Standard church newsletter template", "{}", null, "Preview Administrator"));
+
+        // 5. Campaigns
+        var statsJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            sent = 36,
+            delivered = 32,
+            bounces = 4,
+            opens = 25,
+            uniqueOpens = 17,
+            clicks = 5,
+            uniqueClicks = 4,
+            unsubscribes = 2,
+            complaints = 0
+        });
+
+        var cmp1 = EmailCampaign.Create("Harvest Thanksgiving invitation", "You’re invited: Harvest Thanksgiving this Sunday", "{}", $"{{\"listIds\":[\"{audNews.Id}\"]}}", null, "Preview Administrator");
+        cmp1.MarkSent(36, statsJson, now.AddDays(-2));
+
+        var cmp2 = EmailCampaign.Create("Youth camp reminder", "Youth camp registration closes soon", "{}", $"{{\"listIds\":[\"{audYouth.Id}\"]}}", null, "Preview Administrator");
+
+        comms.Campaigns.AddRange(cmp1, cmp2);
+
+        // 6. Form
+        var campFields = System.Text.Json.JsonSerializer.Serialize(new object[]
+        {
+            new { id = "fullname", type = "short_text", label = "Full name", required = true },
+            new { id = "emailaddr", type = "email", label = "Email address", description = "We’ll send your confirmation here.", required = true },
+            new { id = "session", type = "radio", label = "Which session will you attend?", required = true, options = new object[]
+                {
+                    new { id = "morning", label = "Morning (9am)" },
+                    new { id = "evening", label = "Evening (5pm)" }
+                }
+            },
+            new { id = "consent", type = "consent", label = "I’m happy to receive emails from the church", required = false }
+        });
+
+        var formSettings = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            submitLabel = "Register",
+            confirmationTitle = "You’re registered!",
+            confirmationMessage = "We’ll email you the details soon.",
+            redirectUrl = (string?)null,
+            closesAt = (string?)null,
+            responseLimit = 120,
+            notifyEmails = new string[] { seed.OwnerEmail },
+            audienceId = audYouth.Id.ToString()
+        });
+
+        var form = FormDefinition.Create("Youth camp registration", "youth-camp", "Register for our annual youth camp. Places are limited.", campFields, formSettings);
+        form.Publish(now.AddDays(-5));
+        comms.Forms.Add(form);
+
+        await comms.SaveChangesAsync();
     }
 
     private static async Task SeedParishesAsync(IServiceProvider services, SeedOptions seed)
