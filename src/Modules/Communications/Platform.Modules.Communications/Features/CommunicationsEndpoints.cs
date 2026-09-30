@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Platform.Application.Pagination;
 using Platform.Application.Security;
+using Platform.Application.Tenancy;
 using Platform.Modules.Communications.Domain;
 using Platform.Modules.Communications.Infrastructure;
 using Platform.Modules.Groups.Contracts;
@@ -58,10 +59,10 @@ internal sealed class SubmitPrayerValidator : AbstractValidator<SubmitPrayerRequ
 {
     public SubmitPrayerValidator()
     {
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Email).EmailAddress().MaximumLength(256);
+        RuleFor(x => x.Name).MaximumLength(200);
+        RuleFor(x => x.Email).EmailAddress().MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.Email));
         RuleFor(x => x.PhoneNumber).MaximumLength(32);
-        RuleFor(x => x.Request).NotEmpty().MaximumLength(4000);
+        RuleFor(x => x.Request).NotEmpty().WithMessage("Please write your prayer request.").MaximumLength(4000);
     }
 }
 
@@ -219,10 +220,15 @@ public static class CommunicationsEndpoints
     private static PrayerResponse ToResponse(PrayerRequest p) => new(p.Id, p.Name, p.Email, p.PhoneNumber, p.Request, p.IsAnonymous, p.ShareOnPrayerWall,
         p.ApprovedForWall, p.Status.ToString(), p.AssignedToUserId, p.PrayedCount, p.AnswerNote, p.CreatedAt);
 
-    private static async Task<IResult> SubmitPrayer(SubmitPrayerRequest r, ICurrentUser user, IPeopleDirectory people, CommunicationsDbContext db, CancellationToken ct)
+    private static async Task<IResult> SubmitPrayer(SubmitPrayerRequest r, ICurrentUser user, IPeopleDirectory people, ITenantContext tenant, CommunicationsDbContext db, CancellationToken ct)
     {
         Guid? personId = user.UserId is { } uid ? await people.FindPersonIdByUserAsync(uid, ct) : null;
-        var request = PrayerRequest.Submit(personId, user.UserId, r.Name, r.Email, r.PhoneNumber, r.Request, r.IsAnonymous, r.ShareOnPrayerWall);
+        var name = string.IsNullOrWhiteSpace(r.Name) ? "Anonymous" : r.Name.Trim();
+        var request = PrayerRequest.Submit(personId, user.UserId, name, r.Email, r.PhoneNumber, r.Request, r.IsAnonymous, r.ShareOnPrayerWall);
+        if (tenant.TenantId is { } tid)
+        {
+            request.AssignTenant(tid);
+        }
         db.PrayerRequests.Add(request);
         await db.SaveChangesAsync(ct);
         return Results.Created($"/api/v1/me/prayer-requests/{request.Id}", new { request.Id, Status = request.Status.ToString() });
