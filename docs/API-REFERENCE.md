@@ -322,6 +322,85 @@ Announcements, Prayer Wall, Push/Email Broadcasts.
 | POST | `/devices` | Bearer | None | **Req:** `{ platform: "ios"\|"android"\|"web", token, appVersion? }`<br>**Res:** `204 No Content` |
 | DELETE| `/devices/{token}` | Bearer | None | **Res:** `204 No Content` |
 
+#### Audiences & Contacts (Email Marketing)
+Permission: `audiences:view` / `audiences:manage`
+
+| Method | Path | Auth | Permission | Summary / Payload |
+|---|---|---|---|---|
+| GET | `/audiences` | Bearer | `audiences:view`\|`manage` | **Query:** `?page&pageSize`<br>**Res:** PagedResult |
+| POST | `/audiences` | Bearer | `audiences:manage` | **Req:** `{ name, description?, doubleOptIn? }`<br>**Res:** `200 OK { id, name }` |
+| GET | `/audiences/{id}` | Bearer | `audiences:view`\|`manage` | **Res:** Audience detail + contact counts |
+| PATCH | `/audiences/{id}` | Bearer | `audiences:manage` | Update name / description |
+| DELETE | `/audiences/{id}` | Bearer | `audiences:manage` | **Sudo required** |
+| GET | `/audiences/{id}/contacts` | Bearer | `audiences:view`\|`manage` | **Query:** `?page&pageSize&q`<br>**Res:** PagedResult |
+| POST | `/audiences/{id}/contacts` | Bearer | `audiences:manage` | Add single subscriber |
+| POST | `/audiences/{id}/contacts/remove`| Bearer | `audiences:manage` | Remove contacts by email |
+| POST | `/audiences/{id}/imports` | Bearer | `audiences:manage` | CSV contact import |
+| POST | `/audiences/{id}/sync-members` | Bearer | `audiences:manage` | Sync parishioners to list |
+| POST | `/audiences/estimate` | Bearer | `audiences:view`\|`manage` | **Req:** `{ listIds: [] }`<br>**Res:** `{ count: number }` |
+
+#### Email Templates
+Permission: `templates:view` / `templates:manage`
+
+| Method | Path | Auth | Permission | Summary / Payload |
+|---|---|---|---|---|
+| GET | `/templates` | Bearer | `templates:view`\|`manage` | **Query:** `?page&pageSize&q`<br>**Res:** PagedResult |
+| POST | `/templates` | Bearer | `templates:manage` | **Req:** `{ name, description?, content: JSON }`<br>**Res:** `200 OK { id, name }` |
+| GET | `/templates/{id}` | Bearer | `templates:view`\|`manage` | **Res:** Template detail |
+| PATCH | `/templates/{id}` | Bearer | `templates:manage` | Update template |
+| POST | `/templates/{id}/duplicate` | Bearer | `templates:manage` | Clones template as "(copy)" |
+| DELETE | `/templates/{id}` | Bearer | `templates:manage` | Delete template |
+
+#### Email Campaigns
+Permission: `campaigns:view` / `campaigns:manage`
+
+| Method | Path | Auth | Permission | Summary / Payload |
+|---|---|---|---|---|
+| GET | `/campaigns` | Bearer | `campaigns:view`\|`manage` | **Query:** `?page&pageSize&status`<br>**Res:** PagedResult |
+| POST | `/campaigns` | Bearer | `campaigns:manage` | Create draft campaign |
+| GET | `/campaigns/{id}` | Bearer | `campaigns:view`\|`manage` | Campaign detail |
+| PATCH | `/campaigns/{id}` | Bearer | `campaigns:manage` | Update draft setup / content / audience |
+| GET | `/campaigns/{id}/report` | Bearer | `campaigns:view`\|`manage` | Delivery, opens, clicks metrics |
+| POST | `/campaigns/{id}/test` | Bearer | `campaigns:manage` | Send preview test email |
+| POST | `/campaigns/{id}/schedule` | Bearer | `campaigns:manage` | Schedule send for future date |
+| POST | `/campaigns/{id}/send` | Bearer | `campaigns:manage` | **Sudo required** Trigger immediate blast |
+| POST | `/campaigns/{id}/unschedule` | Bearer | `campaigns:manage` | Revert to draft |
+| POST | `/campaigns/{id}/duplicate` | Bearer | `campaigns:manage` | Clones campaign |
+| DELETE | `/campaigns/{id}` | Bearer | `campaigns:manage` | Delete campaign |
+
+#### Forms (Admin Management)
+Permission: `forms:view` / `forms:manage`
+
+| Method | Path | Auth | Permission | Summary / Payload |
+|---|---|---|---|---|
+| GET | `/forms` | Bearer | `forms:view`\|`manage` | **Query:** `?page&pageSize&q&status`<br>**Res:** PagedResult |
+| POST | `/forms` | Bearer | `forms:manage` | Create new form definition |
+| GET | `/forms/{id}` | Bearer | `forms:view`\|`manage` | Form detail with fields & settings |
+| PATCH | `/forms/{id}` | Bearer | `forms:manage` | Update title, description, fields |
+| PUT | `/forms/{id}/settings` | Bearer | `forms:manage` | Update notifications & access settings |
+| PUT | `/forms/{id}/slug` | Bearer | `forms:manage` | Update custom public slug |
+| POST | `/forms/{id}/publish` | Bearer | `forms:manage` | Publish form live |
+| POST | `/forms/{id}/close` | Bearer | `forms:manage` | Close submissions |
+| POST | `/forms/{id}/duplicate` | Bearer | `forms:manage` | Clone form definition |
+| GET | `/forms/{id}/responses` | Bearer | `forms:view`\|`manage` | **Query:** `?page&pageSize`<br>**Res:** PagedResult |
+| GET | `/forms/{id}/responses/export` | Bearer | `forms:view` | Download responses as CSV |
+| POST | `/forms/{id}/responses/delete` | Bearer | `forms:manage` | **Sudo required** Delete responses |
+| DELETE | `/forms/{id}` | Bearer | `forms:manage` | Delete form |
+
+#### Sending Settings & Domains
+Permission: `settings:manage`
+
+| Method | Path | Auth | Permission | Summary / Payload |
+|---|---|---|---|---|
+| GET | `/email/sender-profile` | Bearer | `settings:manage` | From addresses, default address, reply-to |
+| PUT | `/email/sender-profile` | Bearer | `settings:manage` | Save default sender profile |
+| GET | `/email/sending` | Bearer | `settings:manage` | Provider mode, rate limits, unsubscribe info |
+| PUT | `/email/sending` | Bearer | `settings:manage` | Update sending options |
+| GET | `/email/domains` | Bearer | `settings:manage` | List verified custom sending domains |
+| POST | `/email/domains` | Bearer | `settings:manage` | Register sending domain & get DNS records |
+| POST | `/email/domains/{id}/verify`| Bearer | `settings:manage` | Validate DNS SPF/DKIM records |
+| DELETE | `/email/domains/{id}` | Bearer | `settings:manage` | Remove custom domain |
+
 ### Dashboard
 Home overview stats for administrators.
 
@@ -330,10 +409,12 @@ Home overview stats for administrators.
 | GET | `/dashboard/summary` | Bearer | `dashboard:view` | **Res:** `{ members, audience, campaigns, forms, pending: { accessRequests, memberApprovals, scheduledCampaigns }, setup: { domainVerified, hasAudience, hasForm, postalAddressSet } }` |
 
 ### Public Endpoints
-CDN-cacheable endpoints for the public-facing website and mobile app. Must include `X-Tenant` header.
+CDN-cacheable endpoints for the public-facing website and mobile app. Must include `X-Tenant` header (or resolved by domain).
 
 | Method | Path | Auth | Permission | Summary / Payload |
 |---|---|---|---|---|
+| GET | `/public/forms/{slug}` | Anonymous | None | Get live published form schema & styling |
+| POST | `/public/forms/{slug}/responses` | Anonymous | None | Submit response to public form |
 | GET | `/public/content/pages` | X-Tenant | None | **Query:** `?path=/about`<br>**Res:** `PageResponse` |
 | GET | `/public/content/navigation`| X-Tenant | None | **Res:** Nav items |
 | GET | `/public/content/menus/{key}`| X-Tenant | None | **Res:** `MenuResponse` |

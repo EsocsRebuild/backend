@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Platform.Application.Pagination;
 using Platform.Application.Security;
+using Platform.Infrastructure.Persistence;
 using Platform.Modules.Communications.Domain;
 using Platform.Modules.Communications.Infrastructure;
 using Platform.SharedKernel.Results;
@@ -118,7 +119,7 @@ public static class FormEndpoints
             .RequireSudo()
             .WithSummary("Delete specific responses");
 
-        var pub = endpoints.MapPublicGroup("public/forms", "Public forms");
+        var pub = endpoints.MapPublicGroup("forms", "Public forms");
 
         pub.MapGet("/{slug}", GetPublicForm)
             .WithSummary("Get live form definition");
@@ -338,7 +339,7 @@ public static class FormEndpoints
 
     private static async Task<IResult> GetPublicForm(string slug, CommunicationsDbContext db, CancellationToken ct)
     {
-        var f = await db.Forms.AsNoTracking().FirstOrDefaultAsync(x => x.Slug == slug.ToLowerInvariant(), ct);
+        var f = await db.Forms.IgnoreQueryFilters([QueryFilters.Tenant]).AsNoTracking().FirstOrDefaultAsync(x => x.Slug == slug.ToLowerInvariant(), ct);
         if (f is null || f.Status == "draft") return NotFound.ToError();
 
         JsonElement? fields = null;
@@ -351,11 +352,12 @@ public static class FormEndpoints
 
     private static async Task<IResult> SubmitPublicResponse(string slug, SubmitResponseInput req, CommunicationsDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var f = await db.Forms.FirstOrDefaultAsync(x => x.Slug == slug.ToLowerInvariant(), ct);
+        var f = await db.Forms.IgnoreQueryFilters([QueryFilters.Tenant]).FirstOrDefaultAsync(x => x.Slug == slug.ToLowerInvariant(), ct);
         if (f is null || f.Status != "published") return NotFound.ToError();
 
         var now = clock.GetUtcNow();
         var resp = FormResponseEntry.Create(f.Id, req.Answers.GetRawText(), now);
+        resp.AssignTenant(f.TenantId);
         db.FormResponses.Add(resp);
         await db.SaveChangesAsync(ct);
 
