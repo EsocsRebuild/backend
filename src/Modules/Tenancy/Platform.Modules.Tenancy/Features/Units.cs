@@ -20,7 +20,7 @@ using Platform.Web.Security;
 namespace Platform.Modules.Tenancy.Features;
 
 public sealed record UnitResponse(
-    Guid Id, string Slug, string Kind, string Name, Guid? ParentId, string? ParentName, int Depth, string Status, bool HoldsMembers,
+    Guid Id, string Slug, string Kind, string Name, Guid? ParentId, string? ParentSlug, string? ParentName, int Depth, string Status, bool HoldsMembers,
     string? Tagline, IReadOnlyList<string> About, string? Locality, string? Address, string? Country, DateOnly? Established,
     ImageRef? Cover, ImageRef? Avatar, IReadOnlyList<UnitLeader> Leaders, IReadOnlyList<string> Phones, string? Email, int SortOrder,
     int ChildCount, DateTimeOffset UpdatedAt);
@@ -79,10 +79,16 @@ public static class Units
 
         endpoints.MapPublicGroup("parishes", "Public")
             .MapGet("/", PublicParishes).WithSummary("Parishes for the admin sign-up form");
+
+        var pub = endpoints.MapPublicGroup("units", "Public");
+        pub.MapGet("/", PublicList).WithSummary("Public unit directory search");
+        pub.MapGet("/{slug}", PublicGet).WithSummary("Public unit detail by slug");
+        pub.MapGet("/{slug}/ancestors", PublicAncestors).WithSummary("Ancestors from root down to this unit");
+        pub.MapGet("/{slug}/children", PublicChildren).WithSummary("Direct sub-units of a unit");
     }
 
-    private static UnitResponse ToResponse(Unit u, string? parentName, int childCount) => new(
-        u.Id, u.Slug, UnitKinds.Format(u.Kind), u.Name, u.ParentId, parentName, u.Depth, u.Status.ToString().ToLowerInvariant(), u.HoldsMembers,
+    private static UnitResponse ToResponse(Unit u, string? parentSlug, string? parentName, int childCount) => new(
+        u.Id, u.Slug, UnitKinds.Format(u.Kind), u.Name, u.ParentId, parentSlug, parentName, u.Depth, u.Status.ToString().ToLowerInvariant(), u.HoldsMembers,
         u.Tagline, u.About, u.Locality, u.Address, u.Country, u.Established, u.Cover, u.Avatar, u.Leaders, u.Phones, u.Email, u.SortOrder,
         childCount, u.UpdatedAt ?? u.CreatedAt);
 
@@ -109,12 +115,13 @@ public static class Units
             .Select(u => new
             {
                 Unit = u,
+                ParentSlug = db.Units.Where(p => p.Id == u.ParentId).Select(p => p.Slug).FirstOrDefault(),
                 ParentName = db.Units.Where(p => p.Id == u.ParentId).Select(p => p.Name).FirstOrDefault(),
                 Children = db.Units.Count(c => c.ParentId == u.Id),
             })
             .ToListAsync(ct);
 
-        return Results.Ok(new PagedResult<UnitResponse>(rows.Select(r => ToResponse(r.Unit, r.ParentName, r.Children)).ToList(),
+        return Results.Ok(new PagedResult<UnitResponse>(rows.Select(r => ToResponse(r.Unit, r.ParentSlug, r.ParentName, r.Children)).ToList(),
             page.SafePage, page.SafePageSize, total));
     }
 
@@ -126,8 +133,8 @@ public static class Units
             return NotFound.ToError();
         }
 
-        var parentName = unit.ParentId is { } pid ? await db.Units.Where(p => p.Id == pid).Select(p => p.Name).FirstOrDefaultAsync(ct) : null;
-        return Results.Ok(ToResponse(unit, parentName, await db.Units.CountAsync(c => c.ParentId == id, ct)));
+        var parent = unit.ParentId is { } pid ? await db.Units.Where(p => p.Id == pid).Select(p => new { p.Slug, p.Name }).FirstOrDefaultAsync(ct) : null;
+        return Results.Ok(ToResponse(unit, parent?.Slug, parent?.Name, await db.Units.CountAsync(c => c.ParentId == id, ct)));
     }
 
     private static async Task<IResult> Create(SaveUnitRequest r, TenancyDbContext db, ITenantContext tenant, IAuditLog audit, HybridCache cache, CancellationToken ct)
@@ -151,7 +158,7 @@ public static class Units
         audit.Record("unit.created", $"Added {unit.Name}", target: new AuditTarget("unit", unit.Id.ToString(), unit.Name));
         await db.SaveChangesAsync(ct);
         await cache.RemoveByTagAsync(CacheKeys.TenantTag(unit.TenantId), ct);
-        return Results.Created($"/api/v1/units/{unit.Id}", ToResponse(unit, parent?.Name, 0));
+        return Results.Created($"/api/v1/units/{unit.Id}", ToResponse(unit, parent?.Slug, parent?.Name, 0));
     }
 
     private static async Task<IResult> Update(Guid id, SaveUnitRequest r, TenancyDbContext db, IAuditLog audit, HybridCache cache, CancellationToken ct)
@@ -240,6 +247,120 @@ public static class Units
 
         http.Response.Headers.CacheControl = "public, max-age=300";
         return Results.Ok((await units.GetParishesAsync(null, ct)).Select(p => new ParishResponse(p.Id, p.Name)));
+    }
+
+    private static async Task<IResult> PublicList([AsParameters] PageRequest page, string? kind, string? parentSlug, string? country, TenancyDbContext db, HttpContext http, CancellationToken ct)
+    {
+        var query = db.Units.AsNoTracking().Where(u => u.Status == UnitStatus.Active);
+        if (page.Search is { } q)
+        {
+            query = query.Where(u => EF.Functions.ILike(u.Name, $"%{q}%") || EF.Functions.ILike(u.Locality ?? "", $"%{q}%") || EF.Functions.ILike(u.Address ?? "", $"%{q}%"));
+        }
+
+        if (UnitKinds.TryParse(kind, out var k)) query = query.Where(u => u.Kind == k);
+        if (!string.IsNullOrWhiteSpace(parentSlug))
+        {
+            var pid = await db.Units.Where(p => p.Slug == parentSlug).Select(p => (Guid?)p.Id).FirstOrDefaultAsync(ct);
+            query = query.Where(u => u.ParentId == pid);
+        }
+        if (!string.IsNullOrWhiteSpace(country))
+        {
+            query = query.Where(u => u.Country == country.ToUpperInvariant());
+        }
+
+        query = page.Sort switch
+        {
+            "kind" => page.Descending ? query.OrderByDescending(u => u.Kind) : query.OrderBy(u => u.Kind),
+            "name" => page.Descending ? query.OrderByDescending(u => u.Name) : query.OrderBy(u => u.Name),
+            _ => query.OrderBy(u => u.Depth).ThenBy(u => u.SortOrder).ThenBy(u => u.Name),
+        };
+
+        var total = await query.LongCountAsync(ct);
+        var rows = await query.Skip(page.Skip).Take(page.SafePageSize)
+            .Select(u => new
+            {
+                Unit = u,
+                ParentSlug = db.Units.Where(p => p.Id == u.ParentId).Select(p => p.Slug).FirstOrDefault(),
+                ParentName = db.Units.Where(p => p.Id == u.ParentId).Select(p => p.Name).FirstOrDefault(),
+                Children = db.Units.Count(c => c.ParentId == u.Id),
+            })
+            .ToListAsync(ct);
+
+        http.Response.Headers.CacheControl = "public, max-age=60";
+        return Results.Ok(new PagedResult<UnitResponse>(rows.Select(r => ToResponse(r.Unit, r.ParentSlug, r.ParentName, r.Children)).ToList(),
+            page.SafePage, page.SafePageSize, total));
+    }
+
+    private static async Task<IResult> PublicGet(string slug, TenancyDbContext db, HttpContext http, CancellationToken ct)
+    {
+        var unit = await db.Units.AsNoTracking().FirstOrDefaultAsync(u => u.Slug == slug && u.Status == UnitStatus.Active, ct);
+        if (unit is null)
+        {
+            return NotFound.ToError();
+        }
+
+        var parent = unit.ParentId is { } pid ? await db.Units.Where(p => p.Id == pid).Select(p => new { p.Slug, p.Name }).FirstOrDefaultAsync(ct) : null;
+        http.Response.Headers.CacheControl = "public, max-age=60";
+        return Results.Ok(ToResponse(unit, parent?.Slug, parent?.Name, await db.Units.CountAsync(c => c.ParentId == unit.Id, ct)));
+    }
+
+    private static async Task<IResult> PublicAncestors(string slug, TenancyDbContext db, HttpContext http, CancellationToken ct)
+    {
+        var unit = await db.Units.AsNoTracking().FirstOrDefaultAsync(u => u.Slug == slug, ct);
+        if (unit is null)
+        {
+            return NotFound.ToError();
+        }
+
+        var ancestorIds = unit.Path.Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => Guid.TryParse(s, out var id) ? (Guid?)id : null)
+            .Where(id => id.HasValue && id != unit.Id)
+            .Select(id => id!.Value)
+            .ToList();
+
+        if (ancestorIds.Count == 0)
+        {
+            return Results.Ok(Array.Empty<UnitResponse>());
+        }
+
+        var ancestors = await db.Units.AsNoTracking()
+            .Where(u => ancestorIds.Contains(u.Id))
+            .OrderBy(u => u.Depth)
+            .Select(u => new
+            {
+                Unit = u,
+                ParentSlug = db.Units.Where(p => p.Id == u.ParentId).Select(p => p.Slug).FirstOrDefault(),
+                ParentName = db.Units.Where(p => p.Id == u.ParentId).Select(p => p.Name).FirstOrDefault(),
+                Children = db.Units.Count(c => c.ParentId == u.Id),
+            })
+            .ToListAsync(ct);
+
+        http.Response.Headers.CacheControl = "public, max-age=120";
+        return Results.Ok(ancestors.Select(r => ToResponse(r.Unit, r.ParentSlug, r.ParentName, r.Children)));
+    }
+
+    private static async Task<IResult> PublicChildren(string slug, TenancyDbContext db, HttpContext http, CancellationToken ct)
+    {
+        var unit = await db.Units.AsNoTracking().FirstOrDefaultAsync(u => u.Slug == slug, ct);
+        if (unit is null)
+        {
+            return NotFound.ToError();
+        }
+
+        var children = await db.Units.AsNoTracking()
+            .Where(u => u.ParentId == unit.Id && u.Status == UnitStatus.Active)
+            .OrderBy(u => u.SortOrder).ThenBy(u => u.Name)
+            .Select(u => new
+            {
+                Unit = u,
+                ParentSlug = unit.Slug,
+                ParentName = unit.Name,
+                Children = db.Units.Count(c => c.ParentId == u.Id),
+            })
+            .ToListAsync(ct);
+
+        http.Response.Headers.CacheControl = "public, max-age=60";
+        return Results.Ok(children.Select(r => ToResponse(r.Unit, r.ParentSlug, r.ParentName, r.Children)));
     }
 
     private static UnitProfile ToProfile(SaveUnitRequest r, string slug, UnitKind kind, bool holdsMembers) => new(

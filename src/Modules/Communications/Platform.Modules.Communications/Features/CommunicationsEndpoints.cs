@@ -25,6 +25,8 @@ public sealed record AnnouncementResponse(Guid Id, string Title, string Body, st
 
 public sealed record SubmitPrayerRequest(string Name, string? Email, string? PhoneNumber, string Request, bool IsAnonymous, bool ShareOnPrayerWall);
 
+public sealed record NewsletterSubscribeRequest(string Email, string? Name);
+
 public sealed record ManagePrayerRequest(PrayerStatus Status, Guid? AssignedToUserId, bool ApprovedForWall, string? AnswerNote);
 
 public sealed record PrayerResponse(Guid Id, string Name, string? Email, string? PhoneNumber, string Request, bool IsAnonymous, bool ShareOnPrayerWall,
@@ -133,6 +135,7 @@ public static class CommunicationsEndpoints
         pub.MapPost("/prayer-requests", SubmitPrayer).WithValidation<SubmitPrayerRequest>().WithSummary("Submit a prayer request");
         pub.MapGet("/prayer-wall", PrayerWall).WithSummary("Approved public prayer requests");
         pub.MapPost("/prayer-wall/{id:guid}/pray", PrayFor).WithSummary("\"I prayed\" counter");
+        pub.MapPost("/newsletter", SubscribeNewsletter).WithSummary("Public newsletter subscription");
 
         var me = endpoints.MapGroup("me").WithTags("My account").RequireAuthorization();
         me.MapGet("/announcements", MyAnnouncements).WithSummary("Announcements for me (public, members and my groups)");
@@ -272,6 +275,40 @@ public static class CommunicationsEndpoints
         var updated = await db.PrayerRequests.Where(p => p.Id == id && p.ApprovedForWall)
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.PrayedCount, p => p.PrayedCount + 1), ct);
         return updated == 0 ? NotFound.ToError() : Results.NoContent();
+    }
+
+    private static async Task<IResult> SubscribeNewsletter(NewsletterSubscribeRequest r, ITenantContext tenant, CommunicationsDbContext db, CancellationToken ct)
+    {
+        var email = r.Email?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+        {
+            return Error.Validation("newsletter.invalid_email", "Please enter a valid email address.").ToError();
+        }
+
+        var audience = await db.Audiences.FirstOrDefaultAsync(a => a.Name == "Church newsletter", ct)
+            ?? await db.Audiences.FirstOrDefaultAsync(ct);
+
+        if (audience is null)
+        {
+            audience = AudienceList.Create("Church newsletter", "General church newsletter subscribers", false);
+            if (tenant.TenantId is { } tid) audience.AssignTenant(tid);
+            db.Audiences.Add(audience);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var existing = await db.Contacts.FirstOrDefaultAsync(c => c.AudienceListId == audience.Id && c.Email == email, ct);
+        if (existing is null)
+        {
+            var parts = (r.Name ?? "").Trim().Split(' ', 2);
+            var first = parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]) ? parts[0] : null;
+            var last = parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]) ? parts[1] : null;
+            var contact = AudienceContact.Create(audience.Id, email, first, last, "subscribed", "website", null, DateTimeOffset.UtcNow);
+            if (tenant.TenantId is { } tid) contact.AssignTenant(tid);
+            db.Contacts.Add(contact);
+            await db.SaveChangesAsync(ct);
+        }
+
+        return Results.Ok(new { message = "Subscribed successfully" });
     }
 
     private static async Task<IResult> MyPrayerRequests(ICurrentUser user, CommunicationsDbContext db, CancellationToken ct) =>
