@@ -270,10 +270,12 @@ public static class GivingManagementEndpoints
 
     // ---- Batches ---------------------------------------------------------------------------
 
-    private static async Task<IResult> ListBatches(BatchStatus? status, GivingDbContext db, CancellationToken ct)
+    private static async Task<IResult> ListBatches(BatchStatus? status, GivingDbContext db, ICurrentAccess access, CancellationToken ct)
     {
+        var profile = await access.GetAsync(ct);
         var query = db.Batches.AsNoTracking();
         if (status is { } s) query = query.Where(b => b.Status == s);
+        if (profile?.ScopeUnitId is { } scopeUnitId) query = query.Where(b => b.UnitId == scopeUnitId);
 
         var rows = await query.OrderByDescending(b => b.BatchDate).Take(200)
             .Select(b => new
@@ -288,10 +290,12 @@ public static class GivingManagementEndpoints
             x.b.ExpectedTotal, x.Total, x.Count, x.b.ExpectedTotal is { } e ? x.Total - e : null, x.b.Status.ToString(), x.b.ClosedAt)));
     }
 
-    private static async Task<IResult> OpenBatch(SaveBatchRequest r, GivingDbContext db, ITenantContext tenant, ITenantDirectory tenants, CancellationToken ct)
+    private static async Task<IResult> OpenBatch(SaveBatchRequest r, GivingDbContext db, ITenantContext tenant, ITenantDirectory tenants, ICurrentAccess access, CancellationToken ct)
     {
+        var profile = await access.GetAsync(ct);
+        var unitId = profile?.ScopeUnitId ?? r.UnitId;
         var currency = r.Currency ?? (await tenants.GetAsync(tenant.RequiredTenantId, ct))!.DefaultCurrency;
-        var batch = DonationBatch.Open(r.Name, r.BatchDate, currency, r.UnitId, r.OccurrenceId, r.ExpectedTotal);
+        var batch = DonationBatch.Open(r.Name, r.BatchDate, currency, unitId, r.OccurrenceId, r.ExpectedTotal);
         db.Batches.Add(batch);
         await db.SaveChangesAsync(ct);
         return Results.Created($"/api/v1/batches/{batch.Id}", new { batch.Id });
@@ -327,17 +331,19 @@ public static class GivingManagementEndpoints
     // ---- Reports ---------------------------------------------------------------------------
 
     private static async Task<IResult> Summary(DateOnly from, DateOnly to, string? currency, Guid? unitId, GivingDbContext db,
-        ITenantContext tenant, ITenantDirectory tenants, CancellationToken ct)
+        ITenantContext tenant, ITenantDirectory tenants, ICurrentAccess access, CancellationToken ct)
     {
         if (to < from || to.DayNumber - from.DayNumber > 366 * 3)
         {
             return Error.Validation("report.range", "Use a range of at most three years.").ToError();
         }
 
+        var profile = await access.GetAsync(ct);
+        var effectiveUnitId = profile?.ScopeUnitId ?? unitId;
         var cur = currency?.ToUpperInvariant() ?? (await tenants.GetAsync(tenant.RequiredTenantId, ct))!.DefaultCurrency;
         var donations = db.Donations.AsNoTracking()
             .Where(d => d.Status == DonationStatus.Completed && d.ReceivedOn >= from && d.ReceivedOn <= to && d.Total.Currency == cur);
-        if (unitId is { } b) donations = donations.Where(d => d.UnitId == b);
+        if (effectiveUnitId is { } b) donations = donations.Where(d => d.UnitId == b);
 
         var total = await donations.SumAsync(d => (decimal?)d.Total.Amount, ct) ?? 0;
         var count = await donations.CountAsync(ct);

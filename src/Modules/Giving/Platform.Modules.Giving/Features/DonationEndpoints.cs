@@ -37,7 +37,7 @@ public sealed record StatusChangeRequest(string Reason);
 
 public sealed record DonationQuery(
     int Page = 1, int PageSize = 50, DateOnly? From = null, DateOnly? To = null, Guid? PersonId = null, Guid? FundId = null,
-    Guid? BatchId = null, Guid? CampaignId = null, DonationStatus? Status = null, PaymentMethod? Method = null, string? Search = null);
+    Guid? BatchId = null, Guid? CampaignId = null, Guid? UnitId = null, DonationStatus? Status = null, PaymentMethod? Method = null, string? Search = null);
 
 internal sealed class RecordDonationValidator : AbstractValidator<RecordDonationRequest>
 {
@@ -62,7 +62,10 @@ internal sealed class RecordDonationValidator : AbstractValidator<RecordDonation
 /// <summary>Records gifts with receipt numbers, validating funds, batches and currency.</summary>
 internal sealed class DonationRecorder(GivingDbContext db, ITenantContext tenant, ITenantDirectory tenants, TimeProvider clock)
 {
-    public async Task<Result<Donation>> RecordAsync(RecordDonationRequest r, DonationStatus status, CancellationToken ct)
+    public Task<Result<Donation>> RecordAsync(RecordDonationRequest r, DonationStatus status, CancellationToken ct) =>
+        RecordAsync(r, status, null, ct);
+
+    public async Task<Result<Donation>> RecordAsync(RecordDonationRequest r, DonationStatus status, Guid? effectiveUnitId, CancellationToken ct)
     {
         var tenantId = tenant.RequiredTenantId;
         var currency = r.Currency?.ToUpperInvariant() ?? (await tenants.GetAsync(tenantId, ct))?.DefaultCurrency ?? "USD";
@@ -75,7 +78,7 @@ internal sealed class DonationRecorder(GivingDbContext db, ITenantContext tenant
 
         var number = await db.NextNumberAsync(tenantId, $"receipt-{r.ReceivedOn.Year}", ct);
         var donation = Donation.Record(
-            tenantId, $"R{r.ReceivedOn.Year}-{number:D6}", ToDonor(r), ToGift(r, currency), ToAllocations(r), status, clock.GetUtcNow());
+            tenantId, $"R{r.ReceivedOn.Year}-{number:D6}", ToDonor(r), ToGift(r, currency, effectiveUnitId), ToAllocations(r), status, clock.GetUtcNow());
         donation.AssignToBatch(r.BatchId);
         db.Donations.Add(donation);
         await db.SaveChangesAsync(ct);
@@ -115,8 +118,8 @@ internal sealed class DonationRecorder(GivingDbContext db, ITenantContext tenant
 
     public static DonorInfo ToDonor(RecordDonationRequest r) => new(r.PersonId, r.DonorName, r.DonorEmail);
 
-    public static GiftDetails ToGift(RecordDonationRequest r, string currency) =>
-        new(r.ReceivedOn, r.Method, r.Channel, currency, r.UnitId, r.OccurrenceId, r.CampaignId, r.Reference, r.Notes);
+    public static GiftDetails ToGift(RecordDonationRequest r, string currency, Guid? effectiveUnitId = null) =>
+        new(r.ReceivedOn, r.Method, r.Channel, currency, effectiveUnitId ?? r.UnitId, r.OccurrenceId, r.CampaignId, r.Reference, r.Notes);
 
     public static IReadOnlyCollection<(Guid FundId, decimal Amount)> ToAllocations(RecordDonationRequest r) =>
         r.Allocations.Select(a => (a.FundId, a.Amount)).ToList();
@@ -150,7 +153,7 @@ public static class DonationEndpoints
             d.Reference, d.Notes, d.IsLocked, d.CreatedAt)).ToList();
     }
 
-    private static async Task<IResult> List([AsParameters] DonationQuery q, GivingDbContext db, CancellationToken ct)
+    private static async Task<IResult> List([AsParameters] DonationQuery q, GivingDbContext db, ICurrentAccess currentAccess, CancellationToken ct)
     {
         var page = new PageRequest(q.Page, q.PageSize);
         var query = db.Donations.AsNoTracking().Include(d => d.Allocations).AsQueryable();
@@ -162,6 +165,11 @@ public static class DonationEndpoints
         if (q.CampaignId is { } campaignId) query = query.Where(d => d.CampaignId == campaignId);
         if (q.Status is { } status) query = query.Where(d => d.Status == status);
         if (q.Method is { } method) query = query.Where(d => d.Method == method);
+
+        var access = await currentAccess.GetAsync(ct);
+        var effectiveUnitId = access?.ScopeUnitId ?? q.UnitId;
+        if (effectiveUnitId is { } uid) query = query.Where(d => d.UnitId == uid);
+
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
             var term = q.Search.Trim();
@@ -181,9 +189,11 @@ public static class DonationEndpoints
         return donation is null ? NotFound.ToError() : Results.Ok((await ToResponsesAsync(db, [donation], ct))[0]);
     }
 
-    private static async Task<IResult> Record(RecordDonationRequest r, DonationRecorder recorder, GivingDbContext db, CancellationToken ct)
+    private static async Task<IResult> Record(RecordDonationRequest r, DonationRecorder recorder, GivingDbContext db, ICurrentAccess currentAccess, CancellationToken ct)
     {
-        var result = await recorder.RecordAsync(r, DonationStatus.Completed, ct);
+        var access = await currentAccess.GetAsync(ct);
+        var effectiveUnitId = access?.ScopeUnitId ?? r.UnitId;
+        var result = await recorder.RecordAsync(r, DonationStatus.Completed, effectiveUnitId, ct);
         return result.IsFailure
             ? result.Error.ToError()
             : Results.Created($"/api/v1/donations/{result.Value.Id}", (await ToResponsesAsync(db, [result.Value], ct))[0]);

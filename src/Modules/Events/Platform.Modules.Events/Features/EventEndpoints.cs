@@ -93,14 +93,21 @@ public static class EventEndpoints
         r.OnlineUrl, r.StartsAt.ToUniversalTime(), r.EndsAt.ToUniversalTime(), r.TimeZone, r.AllDay, r.RecurrenceRule, r.RegistrationEnabled,
         r.Capacity, r.RegistrationClosesAt, r.MaxGuestsPerRegistration);
 
-    private static async Task<IResult> List([AsParameters] EventQuery q, EventsDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> List([AsParameters] EventQuery q, EventsDbContext db, TimeProvider clock, ICurrentAccess currentAccess, CancellationToken ct)
     {
         var page = new PageRequest(q.Page, q.PageSize);
         var query = db.Events.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q.Search)) query = query.Where(e => EF.Functions.ILike(e.Title, $"%{q.Search.Trim()}%"));
         if (q.Type is { } type) query = query.Where(e => e.Type == type);
         if (q.Status is { } status) query = query.Where(e => e.Status == status);
-        if (q.UnitId is { } unitId) query = query.Where(e => e.UnitId == unitId);
+
+        var access = await currentAccess.GetAsync(ct);
+        var effectiveUnitId = access?.ScopeUnitId ?? q.UnitId;
+        if (effectiveUnitId is { } unitId)
+        {
+            query = query.Where(e => e.UnitId == unitId || e.UnitId == null);
+        }
+
         if (q.Upcoming)
         {
             var now = clock.GetUtcNow();
@@ -112,18 +119,21 @@ public static class EventEndpoints
         return Results.Ok(new PagedResult<EventResponse>(items.Select(e => e.ToResponse()).ToList(), page.SafePage, page.SafePageSize, total));
     }
 
-    private static async Task<IResult> Calendar([AsParameters] CalendarQuery q, EventsDbContext db, CancellationToken ct)
+    private static async Task<IResult> Calendar([AsParameters] CalendarQuery q, EventsDbContext db, ICurrentAccess currentAccess, CancellationToken ct)
     {
         if (q.To <= q.From || q.To - q.From > TimeSpan.FromDays(92))
         {
             return Error.Validation("calendar.range", "Use a range of at most 92 days.").ToError();
         }
 
+        var access = await currentAccess.GetAsync(ct);
+        var effectiveUnitId = access?.ScopeUnitId ?? q.UnitId;
+
         var query = from o in db.Occurrences.AsNoTracking()
                     join e in db.Events.AsNoTracking() on o.EventId equals e.Id
                     where o.StartsAt < q.To && o.EndsAt > q.From && e.Status != EventStatus.Draft
                     select new { o, e };
-        if (q.UnitId is { } unitId) query = query.Where(x => x.e.UnitId == unitId);
+        if (effectiveUnitId is { } unitId) query = query.Where(x => x.e.UnitId == unitId || x.e.UnitId == null);
         if (q.Type is { } type) query = query.Where(x => x.e.Type == type);
 
         return Results.Ok(await query.OrderBy(x => x.o.StartsAt)
@@ -134,8 +144,11 @@ public static class EventEndpoints
     private static async Task<IResult> Get(Guid id, EventsDbContext db, CancellationToken ct) =>
         await db.Events.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id, ct) is { } e ? Results.Ok(e.ToResponse()) : NotFound.ToError();
 
-    private static async Task<IResult> Create(SaveEventRequest r, EventsDbContext db, OccurrenceSync sync, CancellationToken ct)
+    private static async Task<IResult> Create(SaveEventRequest r, EventsDbContext db, OccurrenceSync sync, ICurrentAccess currentAccess, CancellationToken ct)
     {
+        var access = await currentAccess.GetAsync(ct);
+        var effectiveUnitId = access?.ScopeUnitId ?? r.UnitId;
+
         var slug = r.Slug ?? Slug.From(r.Title);
         if (await db.Events.AnyAsync(e => e.Slug == slug, ct))
         {
@@ -147,7 +160,7 @@ public static class EventEndpoints
         }
 
         var entity = Event.Create(r.Title, slug, r.Type);
-        entity.Update(ToDetails(r, slug));
+        entity.Update(ToDetails(r with { UnitId = effectiveUnitId }, slug));
         db.Events.Add(entity);
         await sync.SyncAsync(entity, ct);
         await db.SaveChangesAsync(ct);

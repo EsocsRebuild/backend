@@ -5,6 +5,8 @@ using Platform.Application.Tenancy;
 using Platform.Infrastructure.Modules;
 using Platform.Modules.Communications.Domain;
 using Platform.Modules.Communications.Infrastructure;
+using Platform.Modules.Content.Domain;
+using Platform.Modules.Content.Infrastructure;
 using Platform.Modules.Identity.Domain;
 using Platform.Modules.Identity.Features;
 using Platform.Modules.Identity.Infrastructure;
@@ -111,6 +113,7 @@ internal static partial class DatabaseInitializer
 
         await SeedParishesAsync(services, seed);
         await SeedCommunicationsAsync(services, seed);
+        await SeedContentAsync(services, seed);
     }
 
     private static async Task SeedCommunicationsAsync(IServiceProvider services, SeedOptions seed)
@@ -208,11 +211,6 @@ internal static partial class DatabaseInitializer
 
     private static async Task SeedParishesAsync(IServiceProvider services, SeedOptions seed)
     {
-        if (seed.SampleParishes.Count == 0)
-        {
-            return;
-        }
-
         var tenancy = services.GetRequiredService<TenancyDbContext>();
         var tenantId = await tenancy.Tenants.Where(t => t.Slug == seed.TenantSlug).Select(t => t.Id).FirstAsync();
         services.GetRequiredService<ITenantContextSetter>().SetTenant(tenantId);
@@ -221,13 +219,103 @@ internal static partial class DatabaseInitializer
             return;
         }
 
-        var headquarters = await tenancy.Units.FirstAsync(u => u.ParentId == null);
+        var root = await tenancy.Units.FirstOrDefaultAsync(u => u.ParentId == null);
+        if (root is null)
+        {
+            return;
+        }
+
+        // Headquarters
+        var ghq = Unit.Create(tenantId, "mount-zion-general-headquarters", UnitKind.Headquarters, "Mount Zion General Headquarters", root);
+        ghq.UpdateProfile(new UnitProfile("mount-zion-general-headquarters", UnitKind.Headquarters, "Mount Zion General Headquarters",
+            UnitStatus.Active, true, "Seat of the Baba Aladura & World Headquarters", ["Mount Zion General Headquarters serves as the sacred seat and global administrative center of the Holy Order."],
+            "Ebute-Metta, Lagos", "9/11 Pearse Street, Off Odo Street, Obalende, Lagos", "NG", null, null, null, [], [], null, 1));
+
+        var abuja = Unit.Create(tenantId, "national-headquarters-annex-abuja", UnitKind.Headquarters, "National Headquarters Annex Abuja", root);
+        abuja.UpdateProfile(new UnitProfile("national-headquarters-annex-abuja", UnitKind.Headquarters, "National Headquarters Annex Abuja",
+            UnitStatus.Active, true, "Federal Capital Territory Annex", ["Administrative and liturgical annex for the federal capital territory."],
+            "Central Area, Abuja", "Plot 104, Central Business District, Abuja", "NG", null, null, null, [], [], null, 2));
+
+        // Sections
+        var women = Unit.Create(tenantId, "women", UnitKind.Section, "Women's Affairs", root);
+        women.UpdateProfile(new UnitProfile("women", UnitKind.Section, "Women's Affairs",
+            UnitStatus.Active, false, "Directorate of Women's Affairs", ["Uniting mothers and daughters in faith and charity across all provinces."],
+            "Worldwide", null, null, null, null, null, [], [], null, 3));
+
+        var youth = Unit.Create(tenantId, "youth", UnitKind.Section, "Youth Affairs", root);
+        youth.UpdateProfile(new UnitProfile("youth", UnitKind.Section, "Youth Affairs",
+            UnitStatus.Active, false, "Mount Zion Youth Society (MZYS)", ["Fostering dynamic spiritual growth, mentorship, and empowerment for youth."],
+            "Worldwide", null, null, null, null, null, [], [], null, 4));
+
+        // CMCs
+        var cmc1 = Unit.Create(tenantId, "cmc-1", UnitKind.Cmc, "CMC 1 Lagos", root);
+        var cmc9 = Unit.Create(tenantId, "cmc-9", UnitKind.Cmc, "CMC 9 Port Harcourt", root);
+
+        tenancy.Units.AddRange(ghq, abuja, women, youth, cmc1, cmc9);
+        await tenancy.SaveChangesAsync();
+
+        // Branches under Headquarters and CMCs
+        tenancy.Units.Add(Unit.Create(tenantId, "memorial-holy-temple", UnitKind.Branch, "Memorial Holy Temple", ghq));
+        tenancy.Units.Add(Unit.Create(tenantId, "diobu-provincial-headquarters", UnitKind.Branch, "Diobu Provincial Headquarters", cmc9));
+
         foreach (var name in seed.SampleParishes)
         {
-            tenancy.Units.Add(Unit.Create(tenantId, Platform.SharedKernel.Domain.Slug.From(name), UnitKind.Branch, name, headquarters));
+            var slug = Platform.SharedKernel.Domain.Slug.From(name);
+            if (!await tenancy.Units.AnyAsync(u => u.Slug == slug))
+            {
+                tenancy.Units.Add(Unit.Create(tenantId, slug, UnitKind.Branch, name, ghq));
+            }
         }
 
         await tenancy.SaveChangesAsync();
+    }
+
+    private static async Task SeedContentAsync(IServiceProvider services, SeedOptions seed)
+    {
+        var content = services.GetRequiredService<ContentDbContext>();
+        var tenancy = services.GetRequiredService<TenancyDbContext>();
+        var tenantId = await tenancy.Tenants.Where(t => t.Slug == seed.TenantSlug).Select(t => t.Id).FirstAsync();
+        services.GetRequiredService<ITenantContextSetter>().SetTenant(tenantId);
+
+        if (await content.Posts.AnyAsync())
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        var post1 = Post.Create("New Year Message from His Most Eminence, Baba Aladura & Prelate", "message-new-year-2026");
+        post1.AssignTenant(tenantId);
+        post1.Update(
+            "New Year Message from His Most Eminence, Baba Aladura & Prelate",
+            "message-new-year-2026",
+            "Grace, peace and manifold blessings of God the Almighty Father be multiplied unto you in this glorious new year.",
+            "[\"Grace, peace and manifold blessings of God the Almighty Father be multiplied unto you in this glorious new year.\", \"The Eternal Sacred Order of the Cherubim and Seraphim continues forward in faith, unity and unwavering service to the Kingdom.\"]",
+            "/media/legacy/welcome-banner.webp",
+            "His Most Eminence Dr. D. D. L. Bob-Manuel",
+            "message",
+            ["esocs", "holy-order"],
+            true,
+            Seo.Empty);
+        post1.Publish(now.AddDays(-10));
+
+        var post2 = Post.Create("Mount Zion General Headquarters Cathedral Dedication", "cathedral-dedication-announcement");
+        post2.AssignTenant(tenantId);
+        post2.Update(
+            "Mount Zion General Headquarters Cathedral Dedication",
+            "cathedral-dedication-announcement",
+            "The dedication of the ultra-modern Mount Zion General Headquarters Cathedral stands as a monumental milestone.",
+            "[\"The dedication of the ultra-modern Mount Zion General Headquarters Cathedral stands as a monumental milestone.\", \"Faithful members from across provinces gathered in holy worship and thanksgiving.\"]",
+            "/media/legacy/cathedral.webp",
+            "Secretariat",
+            "news",
+            ["mount-zion-general-headquarters", "lagos"],
+            true,
+            Seo.Empty);
+        post2.Publish(now.AddDays(-5));
+
+        content.Posts.AddRange(post1, post2);
+        await content.SaveChangesAsync();
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Migrated {Context}")]

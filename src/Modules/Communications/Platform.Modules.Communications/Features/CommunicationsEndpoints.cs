@@ -296,7 +296,7 @@ public static class CommunicationsEndpoints
             await db.SaveChangesAsync(ct);
         }
 
-        var existing = await db.Contacts.FirstOrDefaultAsync(c => c.AudienceListId == audience.Id && c.Email == email, ct);
+        var existing = await db.Contacts.FirstOrDefaultAsync(c => c.ListId == audience.Id && c.Email == email, ct);
         if (existing is null)
         {
             var parts = (r.Name ?? "").Trim().Split(' ', 2);
