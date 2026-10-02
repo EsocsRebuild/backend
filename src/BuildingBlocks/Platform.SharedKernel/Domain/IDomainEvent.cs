@@ -1,7 +1,7 @@
 namespace Platform.SharedKernel.Domain;
 
 /// <summary>An event raised inside a module. Handled asynchronously via the outbox.</summary>
-public interface IDomainEvent
+public interface IDomainEvent : MediatR.INotification
 {
     Guid EventId { get; }
     DateTimeOffset OccurredAt { get; }

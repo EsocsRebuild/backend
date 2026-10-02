@@ -17,7 +17,7 @@ public sealed class OutboxOptions
 {
     public const string SectionName = "Outbox";
 
-    public TimeSpan PollingInterval { get; set; } = TimeSpan.FromSeconds(2);
+    public TimeSpan PollingInterval { get; set; } = TimeSpan.FromMilliseconds(250);
     public int BatchSize { get; set; } = 50;
     public int MaxAttempts { get; set; } = 10;
 }

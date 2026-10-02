@@ -22,6 +22,28 @@ builder.Services
     .AddPlatformWeb()
     .AddApiPlatform(builder.Configuration, builder.Environment);
 
+var signalR = builder.Services.AddSignalR(o =>
+{
+    o.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
+
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+if (!string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    signalR.AddStackExchangeRedis(redisConnectionString, o =>
+    {
+        o.Configuration.ChannelPrefix = StackExchange.Redis.RedisChannel.Literal("church_platform");
+    });
+}
+
+builder.Services.AddSingleton<Platform.Application.RealTime.IChurchRealTimeNotifier, Platform.Api.RealTime.SignalRChurchRealTimeNotifier>();
+
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+    cfg.RegisterServicesFromAssembly(typeof(Platform.Infrastructure.DependencyInjection).Assembly);
+});
+
 foreach (var module in Modules.All)
 {
     module.Register(builder.Services, builder.Configuration);
@@ -72,6 +94,9 @@ foreach (var module in Modules.All)
 }
 
 Platform.Api.Features.Dashboard.Map(api);
+
+app.MapHub<Platform.Api.Hubs.ChurchPlatformHub>("/hubs/platform")
+    .RequireCors(ServiceCollectionExtensions.CorsPolicy);
 
 await DatabaseInitializer.InitialiseAsync(app);
 await app.RunAsync();

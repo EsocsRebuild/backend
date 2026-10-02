@@ -69,6 +69,17 @@ public sealed class IdentityModule : IModule
                 o.TokenValidationParameters = TokenService.ValidationParameters(auth);
                 o.Events = new JwtBearerEvents
                 {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        var path = context.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/platform"))
+                        {
+                            context.Token = accessToken;
+                        }
+                        return Task.CompletedTask;
+                    },
+
                     // The session behind the token must still be live: revocation, suspension, password resets
                     // and the idle timeout take effect on the very next request, not when the token expires.
                     OnTokenValidated = async context =>
