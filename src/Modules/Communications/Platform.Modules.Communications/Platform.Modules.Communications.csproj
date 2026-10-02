@@ -11,6 +11,8 @@
     <ProjectReference Include="..\..\Groups\Platform.Modules.Groups.Contracts\Platform.Modules.Groups.Contracts.csproj" />
     <ProjectReference Include="..\..\Giving\Platform.Modules.Giving.Contracts\Platform.Modules.Giving.Contracts.csproj" />
     <ProjectReference Include="..\..\Tenancy\Platform.Modules.Tenancy.Contracts\Platform.Modules.Tenancy.Contracts.csproj" />
+    <ProjectReference Include="..\..\Identity\Platform.Modules.Identity.Contracts\Platform.Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\Platform.Modules.Communications.Contracts\Platform.Modules.Communications.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Platform.UnitTests" />

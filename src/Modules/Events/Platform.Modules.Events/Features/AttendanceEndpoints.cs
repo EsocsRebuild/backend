@@ -77,24 +77,24 @@ public static class AttendanceEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var reg = endpoints.MapModuleGroup("registrations", "Registrations");
-        reg.MapGet("/occurrences/{occurrenceId:guid}", ListRegistrations).RequirePermission(Permissions.Events.Read).WithSummary("Registrations for an event date");
+        reg.MapGet("/occurrences/{occurrenceId:guid}", ListRegistrations).RequirePermission(Permissions.Events.View).WithSummary("Registrations for an event date");
         reg.MapPost("/occurrences/{occurrenceId:guid}", AdminRegister).WithValidation<RegistrationRequest>()
-            .RequirePermission(Permissions.Events.RegistrationsManage).WithSummary("Register someone (staff, bypasses the registration window)");
-        reg.MapPost("/{id:guid}/cancel", AdminCancel).RequirePermission(Permissions.Events.RegistrationsManage).WithSummary("Cancel a registration (promotes the waitlist)");
+            .RequirePermission(Permissions.Events.Manage).WithSummary("Register someone (staff, bypasses the registration window)");
+        reg.MapPost("/{id:guid}/cancel", AdminCancel).RequirePermission(Permissions.Events.Manage).WithSummary("Cancel a registration (promotes the waitlist)");
 
         var att = endpoints.MapModuleGroup("attendance", "Attendance");
-        att.MapGet("/occurrences/{occurrenceId:guid}", GetOccurrence).RequirePermission(Permissions.Events.AttendanceRead).WithSummary("Attendance and head count for an event date");
+        att.MapGet("/occurrences/{occurrenceId:guid}", GetOccurrence).RequirePermission(Permissions.Events.View).WithSummary("Attendance and head count for an event date");
         att.MapPost("/occurrences/{occurrenceId:guid}/check-in", CheckIn).WithValidation<CheckInRequest>()
-            .RequirePermission(Permissions.Events.AttendanceRecord).WithSummary("Check people in (bulk)");
-        att.MapPost("/occurrences/{occurrenceId:guid}/check-out/{personId:guid}", CheckOut).RequirePermission(Permissions.Events.AttendanceRecord).WithSummary("Check a person out (children's ministry)");
-        att.MapDelete("/occurrences/{occurrenceId:guid}/people/{personId:guid}", RemoveAttendance).RequirePermission(Permissions.Events.AttendanceRecord).WithSummary("Undo a check-in");
+            .RequirePermission(Permissions.Events.RecordAttendance).WithSummary("Check people in (bulk)");
+        att.MapPost("/occurrences/{occurrenceId:guid}/check-out/{personId:guid}", CheckOut).RequirePermission(Permissions.Events.RecordAttendance).WithSummary("Check a person out (children's ministry)");
+        att.MapDelete("/occurrences/{occurrenceId:guid}/people/{personId:guid}", RemoveAttendance).RequirePermission(Permissions.Events.RecordAttendance).WithSummary("Undo a check-in");
         att.MapPut("/occurrences/{occurrenceId:guid}/head-count", SaveHeadCount).WithValidation<HeadCountRequest>()
-            .RequirePermission(Permissions.Events.AttendanceRecord).WithSummary("Record the head count");
-        att.MapPost("/tickets/{ticketCode}/check-in", TicketCheckIn).RequirePermission(Permissions.Events.AttendanceRecord).WithSummary("Scan a QR ticket at the door");
-        att.MapGet("/reports/summary", Summary).RequirePermission(Permissions.Events.AttendanceRead).WithSummary("Attendance per event date over a period");
-        att.MapGet("/people/{personId:guid}", PersonHistory).RequirePermission(Permissions.Events.AttendanceRead).WithSummary("A person's attendance history");
+            .RequirePermission(Permissions.Events.RecordAttendance).WithSummary("Record the head count");
+        att.MapPost("/tickets/{ticketCode}/check-in", TicketCheckIn).RequirePermission(Permissions.Events.RecordAttendance).WithSummary("Scan a QR ticket at the door");
+        att.MapGet("/reports/summary", Summary).RequirePermission(Permissions.Events.View).WithSummary("Attendance per event date over a period");
+        att.MapGet("/people/{personId:guid}", PersonHistory).RequirePermission(Permissions.Events.View).WithSummary("A person's attendance history");
 
-        var me = endpoints.MapGroup($"{EndpointExtensions.ApiPrefix}/me").WithTags("My account").RequireAuthorization();
+        var me = endpoints.MapGroup("me").WithTags("My account").RequireAuthorization();
         me.MapGet("/registrations", MyRegistrations).WithSummary("My upcoming registrations and tickets");
         me.MapPost("/registrations/occurrences/{occurrenceId:guid}", MemberRegister).WithValidation<RegistrationRequest>().WithSummary("Register myself for an event");
         me.MapPost("/registrations/{id:guid}/cancel", MemberCancel).WithSummary("Cancel my registration");
@@ -167,7 +167,7 @@ public static class AttendanceEndpoints
                          select new { o, e.Title }).FirstOrDefaultAsync(ct);
         if (row is null)
         {
-            return RegistrationErrors.OccurrenceNotFound.ToProblem();
+            return RegistrationErrors.OccurrenceNotFound.ToError();
         }
 
         var records = await db.Attendance.AsNoTracking().Where(a => a.OccurrenceId == occurrenceId).ToListAsync(ct);
@@ -191,7 +191,7 @@ public static class AttendanceEndpoints
         var record = await db.Attendance.FirstOrDefaultAsync(a => a.OccurrenceId == occurrenceId && a.PersonId == personId, ct);
         if (record is null)
         {
-            return Error.NotFound("attendance.not_found", "The person is not checked in.").ToProblem();
+            return Error.NotFound("attendance.not_found", "The person is not checked in.").ToError();
         }
 
         record.CheckOut(clock.GetUtcNow());
@@ -204,7 +204,7 @@ public static class AttendanceEndpoints
         var record = await db.Attendance.FirstOrDefaultAsync(a => a.OccurrenceId == occurrenceId && a.PersonId == personId, ct);
         if (record is null)
         {
-            return Error.NotFound("attendance.not_found", "The person is not checked in.").ToProblem();
+            return Error.NotFound("attendance.not_found", "The person is not checked in.").ToError();
         }
 
         db.Attendance.Remove(record);
@@ -216,7 +216,7 @@ public static class AttendanceEndpoints
     {
         if (!await db.Occurrences.AnyAsync(o => o.Id == occurrenceId, ct))
         {
-            return RegistrationErrors.OccurrenceNotFound.ToProblem();
+            return RegistrationErrors.OccurrenceNotFound.ToError();
         }
 
         var headCount = await db.HeadCounts.FirstOrDefaultAsync(h => h.OccurrenceId == occurrenceId, ct);
@@ -236,12 +236,12 @@ public static class AttendanceEndpoints
         var registration = await db.Registrations.FirstOrDefaultAsync(r => r.TicketCode == ticketCode.ToUpperInvariant(), ct);
         if (registration is null)
         {
-            return RegistrationErrors.NotFound.ToProblem();
+            return RegistrationErrors.NotFound.ToError();
         }
 
         if (registration.Status is RegistrationStatus.Cancelled or RegistrationStatus.Waitlisted)
         {
-            return Error.Conflict("registration.not_confirmed", $"This ticket is {registration.Status.ToString().ToLowerInvariant()}.").ToProblem();
+            return Error.Conflict("registration.not_confirmed", $"This ticket is {registration.Status.ToString().ToLowerInvariant()}.").ToError();
         }
 
         registration.CheckIn(clock.GetUtcNow());
@@ -260,7 +260,7 @@ public static class AttendanceEndpoints
     {
         if (await people.FindPersonIdByUserAsync(user.RequiredUserId, ct) is not { } personId)
         {
-            return Error.NotFound("person.no_profile", "No member profile is linked to your account yet.").ToProblem();
+            return Error.NotFound("person.no_profile", "No member profile is linked to your account yet.").ToError();
         }
 
         var now = clock.GetUtcNow();
@@ -270,7 +270,7 @@ public static class AttendanceEndpoints
             .FirstOrDefaultAsync(ct);
         if (occurrence is null)
         {
-            return Error.Validation("checkin.invalid_code", "This code is not valid right now.").ToProblem();
+            return Error.Validation("checkin.invalid_code", "This code is not valid right now.").ToError();
         }
 
         return (await attendance.CheckInAsync(occurrence.Id, [personId], CheckInMethod.SelfCheckIn, null, null, ct)).ToHttp();
@@ -280,7 +280,7 @@ public static class AttendanceEndpoints
     {
         if (to <= from || to - from > TimeSpan.FromDays(366))
         {
-            return Error.Validation("report.range", "Use a range of at most one year.").ToProblem();
+            return Error.Validation("report.range", "Use a range of at most one year.").ToError();
         }
 
         var query = from o in db.Occurrences.AsNoTracking()

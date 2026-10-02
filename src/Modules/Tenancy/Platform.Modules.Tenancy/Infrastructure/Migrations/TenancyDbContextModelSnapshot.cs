@@ -104,6 +104,104 @@ namespace Platform.Modules.Tenancy.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Platform.Infrastructure.Auditing.AuditEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("ActorEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("actor_email");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("ActorName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("actor_name");
+
+                    b.Property<string>("Changes")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("changes");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("ip_address");
+
+                    b.Property<string>("RequestId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("severity");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("summary");
+
+                    b.Property<string>("TargetId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("target_id");
+
+                    b.Property<string>("TargetLabel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("target_label");
+
+                    b.Property<string>("TargetType")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("target_type");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("user_agent");
+
+                    b.HasKey("Id")
+                        .HasName("pk_audit_events");
+
+                    b.HasIndex("TenantId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_events_tenant_id_created_at");
+
+                    b.HasIndex("TenantId", "ActorId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_events_tenant_id_actor_id_created_at");
+
+                    b.HasIndex("TenantId", "Severity", "CreatedAt")
+                        .HasDatabaseName("ix_audit_events_tenant_id_severity_created_at");
+
+                    b.ToTable("audit_events", "audit", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("Platform.Infrastructure.Outbox.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -176,144 +274,6 @@ namespace Platform.Modules.Tenancy.Infrastructure.Migrations
                         .HasName("pk_number_sequences");
 
                     b.ToTable("number_sequences", "tenancy");
-                });
-
-            modelBuilder.Entity("Platform.Modules.Tenancy.Domain.Branch", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("citext")
-                        .HasColumnName("code");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("deleted_at");
-
-                    b.Property<Guid?>("DeletedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("deleted_by");
-
-                    b.Property<string>("Email")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("email");
-
-                    b.Property<DateOnly?>("EstablishedOn")
-                        .HasColumnType("date")
-                        .HasColumnName("established_on");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_deleted");
-
-                    b.Property<bool>("IsHeadquarters")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_headquarters");
-
-                    b.Property<Guid?>("LeaderPersonId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("leader_person_id");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("name");
-
-                    b.Property<string>("Phone")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("phone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("status");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("tenant_id");
-
-                    b.Property<string>("TimeZone")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("time_zone");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.Property<uint>("xmin")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
-                    b.ComplexProperty(typeof(Dictionary<string, object>), "Address", "Platform.Modules.Tenancy.Domain.Branch.Address#Address", b1 =>
-                        {
-                            b1.IsRequired();
-
-                            b1.Property<string>("City")
-                                .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
-                                .HasColumnName("address_city");
-
-                            b1.Property<string>("Country")
-                                .HasMaxLength(2)
-                                .HasColumnType("character varying(2)")
-                                .HasColumnName("address_country");
-
-                            b1.Property<string>("Line1")
-                                .HasMaxLength(200)
-                                .HasColumnType("character varying(200)")
-                                .HasColumnName("address_line1");
-
-                            b1.Property<string>("Line2")
-                                .HasMaxLength(200)
-                                .HasColumnType("character varying(200)")
-                                .HasColumnName("address_line2");
-
-                            b1.Property<string>("PostalCode")
-                                .HasMaxLength(20)
-                                .HasColumnType("character varying(20)")
-                                .HasColumnName("address_postal_code");
-
-                            b1.Property<string>("State")
-                                .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
-                                .HasColumnName("address_state");
-                        });
-
-                    b.HasKey("Id")
-                        .HasName("pk_branches");
-
-                    b.HasIndex("TenantId")
-                        .HasDatabaseName("ix_branches_tenant_id");
-
-                    b.HasIndex("TenantId", "Code")
-                        .IsUnique()
-                        .HasDatabaseName("ix_branches_tenant_id_code")
-                        .HasFilter("is_deleted = false");
-
-                    b.ToTable("branches", "tenancy");
                 });
 
             modelBuilder.Entity("Platform.Modules.Tenancy.Domain.Tenant", b =>
@@ -563,6 +523,164 @@ namespace Platform.Modules.Tenancy.Infrastructure.Migrations
                     b.ToTable("settings", "tenancy");
                 });
 
+            modelBuilder.Entity("Platform.Modules.Tenancy.Domain.Unit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.PrimitiveCollection<List<string>>("About")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("about");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(2)
+                        .HasColumnType("character(2)")
+                        .HasColumnName("country")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<int>("Depth")
+                        .HasColumnType("integer")
+                        .HasColumnName("depth");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("email");
+
+                    b.Property<DateOnly?>("Established")
+                        .HasColumnType("date")
+                        .HasColumnName("established");
+
+                    b.Property<bool>("HoldsMembers")
+                        .HasColumnType("boolean")
+                        .HasColumnName("holds_members");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Locality")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("locality");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_id");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("path");
+
+                    b.PrimitiveCollection<List<string>>("Phones")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("phones");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("citext")
+                        .HasColumnName("slug");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Tagline")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("tagline");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_units");
+
+                    b.HasIndex("ParentId")
+                        .HasDatabaseName("ix_units_parent_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_units_tenant_id");
+
+                    b.HasIndex("TenantId", "Kind")
+                        .HasDatabaseName("ix_units_tenant_id_kind");
+
+                    b.HasIndex("TenantId", "Path")
+                        .HasDatabaseName("ix_units_tenant_id_path");
+
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("TenantId", "Path"), new[] { "uuid_ops", "text_pattern_ops" });
+
+                    b.HasIndex("TenantId", "Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_units_tenant_id_slug")
+                        .HasFilter("is_deleted = false");
+
+                    b.HasIndex("TenantId", "ParentId", "SortOrder")
+                        .HasDatabaseName("ix_units_tenant_id_parent_id_sort_order");
+
+                    b.ToTable("units", "tenancy");
+                });
+
             modelBuilder.Entity("Platform.Modules.Tenancy.Domain.TenantDomain", b =>
                 {
                     b.HasOne("Platform.Modules.Tenancy.Domain.Tenant", null)
@@ -571,6 +689,108 @@ namespace Platform.Modules.Tenancy.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_tenant_domains_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("Platform.Modules.Tenancy.Domain.Unit", b =>
+                {
+                    b.HasOne("Platform.Modules.Tenancy.Domain.Unit", null)
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_units_units_parent_id");
+
+                    b.OwnsOne("Platform.SharedKernel.Domain.ImageRef", "Avatar", b1 =>
+                        {
+                            b1.Property<Guid>("UnitId");
+
+                            b1.Property<string>("Alt")
+                                .IsRequired();
+
+                            b1.Property<int?>("Height");
+
+                            b1.Property<string>("Placeholder");
+
+                            b1.Property<string>("Url")
+                                .IsRequired();
+
+                            b1.Property<int?>("Width");
+
+                            b1.HasKey("UnitId");
+
+                            b1.ToTable("units", "tenancy");
+
+                            b1
+                                .ToJson("avatar")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("UnitId")
+                                .HasConstraintName("fk_units_units_id");
+                        });
+
+                    b.OwnsOne("Platform.SharedKernel.Domain.ImageRef", "Cover", b1 =>
+                        {
+                            b1.Property<Guid>("UnitId");
+
+                            b1.Property<string>("Alt")
+                                .IsRequired();
+
+                            b1.Property<int?>("Height");
+
+                            b1.Property<string>("Placeholder");
+
+                            b1.Property<string>("Url")
+                                .IsRequired();
+
+                            b1.Property<int?>("Width");
+
+                            b1.HasKey("UnitId")
+                                .HasName("pk_units");
+
+                            b1.ToTable("units", "tenancy");
+
+                            b1
+                                .ToJson("cover")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("UnitId")
+                                .HasConstraintName("fk_units_units_unit_id");
+                        });
+
+                    b.OwnsMany("Platform.Modules.Tenancy.Domain.UnitLeader", "Leaders", b1 =>
+                        {
+                            b1.Property<Guid>("UnitId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("Name")
+                                .IsRequired();
+
+                            b1.Property<string>("PersonSlug");
+
+                            b1.Property<string>("Role")
+                                .IsRequired();
+
+                            b1.HasKey("UnitId", "__synthesizedOrdinal");
+
+                            b1.ToTable("units", "tenancy");
+
+                            b1
+                                .ToJson("leaders")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("UnitId")
+                                .HasConstraintName("fk_units_units_unit_id");
+                        });
+
+                    b.Navigation("Avatar");
+
+                    b.Navigation("Cover");
+
+                    b.Navigation("Leaders");
                 });
 
             modelBuilder.Entity("Platform.Modules.Tenancy.Domain.Tenant", b =>

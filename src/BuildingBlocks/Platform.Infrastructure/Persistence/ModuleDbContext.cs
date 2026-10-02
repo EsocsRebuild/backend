@@ -45,6 +45,7 @@ public abstract class ModuleDbContext : DbContext
         modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
         modelBuilder.ApplyConfiguration(new NumberSequenceConfiguration());
         modelBuilder.ApplyConfiguration(new AuditEntryConfiguration(ownsTable: OwnsAuditTable));
+        modelBuilder.ApplyConfiguration(new AuditEventConfiguration(ownsTable: OwnsAuditTable));
 
         ApplyModuleConfigurations(modelBuilder);
         ApplyConventions(modelBuilder);

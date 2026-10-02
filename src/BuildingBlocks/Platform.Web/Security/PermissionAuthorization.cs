@@ -11,14 +11,11 @@ public sealed class PermissionRequirement(IReadOnlyCollection<string> permission
     public IReadOnlyCollection<string> Permissions { get; } = permissions;
 }
 
-internal sealed class PermissionAuthorizationHandler(
-    IPermissionService permissionService,
-    ICurrentUser currentUser,
-    ITenantContext tenantContext) : AuthorizationHandler<PermissionRequirement>
+internal sealed class PermissionAuthorizationHandler(ICurrentAccess access) : AuthorizationHandler<PermissionRequirement>
 {
     protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
     {
-        if (context.User.Identity?.IsAuthenticated != true || tenantContext.TenantId is not { } tenantId)
+        if (context.User.Identity?.IsAuthenticated != true)
         {
             return;
         }
@@ -35,17 +32,23 @@ internal sealed class PermissionAuthorizationHandler(
             return;
         }
 
-        if (currentUser.UserId is not { } userId)
-        {
-            return;
-        }
-
-        var granted = await permissionService.GetPermissionsAsync(userId, tenantId, CancellationToken.None);
-        if (requirement.Permissions.All(granted.Contains))
+        var profile = await access.GetAsync(CancellationToken.None);
+        if (profile is not null && requirement.Permissions.All(profile.Permissions.Contains))
         {
             context.Succeed(requirement);
         }
     }
+}
+
+/// <summary>Per-request memo of the caller's access profile (permissions + parish scope).</summary>
+internal sealed class CurrentAccess(IPermissionService permissions, ICurrentUser user, ITenantContext tenant) : ICurrentAccess
+{
+    private Task<AccessProfile?>? _profile;
+
+    public Task<AccessProfile?> GetAsync(CancellationToken cancellationToken) =>
+        _profile ??= user.UserId is { } userId && tenant.TenantId is { } tenantId
+            ? permissions.GetAccessAsync(userId, tenantId, cancellationToken)
+            : Task.FromResult<AccessProfile?>(null);
 }
 
 public static class PermissionEndpointExtensions

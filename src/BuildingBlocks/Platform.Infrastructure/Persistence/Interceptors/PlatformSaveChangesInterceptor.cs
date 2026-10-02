@@ -24,6 +24,7 @@ public sealed class PlatformSaveChangesInterceptor(
     ITenantContext tenantContext,
     ICurrentUser currentUser,
     IRequestInfo requestInfo,
+    AuditLog auditLog,
     TimeProvider clock) : SaveChangesInterceptor
 {
     public static readonly JsonSerializerOptions EventSerializerOptions = new(JsonSerializerDefaults.Web);
@@ -55,7 +56,7 @@ public sealed class PlatformSaveChangesInterceptor(
         var userId = currentUser.UserId;
         var entries = context.ChangeTracker.Entries()
             .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
-            .Where(e => e.Entity is not AuditEntry and not OutboxMessage)
+            .Where(e => e.Entity is not AuditEntry and not AuditEvent and not OutboxMessage and not NumberSequence)
             .ToList();
 
         var audits = new List<AuditEntry>();
@@ -74,6 +75,7 @@ public sealed class PlatformSaveChangesInterceptor(
         }
 
         context.Set<AuditEntry>().AddRange(audits);
+        context.Set<AuditEvent>().AddRange(auditLog.Drain());
         WriteOutbox(context, now);
     }
 

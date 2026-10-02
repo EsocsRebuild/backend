@@ -25,6 +25,8 @@ public static class DependencyInjection
 
         services.TryAddScoped<IRequestInfo, NullRequestInfo>();
         services.AddScoped<PlatformSaveChangesInterceptor>();
+        services.AddScoped<AuditLog>();
+        services.AddScoped<Platform.Application.Abstractions.IAuditLog>(sp => sp.GetRequiredService<AuditLog>());
         services.AddScoped<IEventDispatcher, InProcessEventDispatcher>();
         services.Configure<OutboxOptions>(configuration.GetSection(OutboxOptions.SectionName));
 

@@ -42,20 +42,35 @@ internal sealed class TenantDomainConfiguration : IEntityTypeConfiguration<Tenan
     }
 }
 
-internal sealed class BranchConfiguration : IEntityTypeConfiguration<Branch>
+internal sealed class UnitConfiguration : IEntityTypeConfiguration<Unit>
 {
-    public void Configure(EntityTypeBuilder<Branch> builder)
+    public void Configure(EntityTypeBuilder<Unit> builder)
     {
-        builder.ToTable("branches");
+        builder.ToTable("units");
+        builder.Property(x => x.Slug).HasMaxLength(120).IsCaseInsensitive();
+        builder.HasIndex(x => new { x.TenantId, x.Slug }).IsUnique().HasFilter("is_deleted = false");
+        builder.Property(x => x.Kind).HasConversion(k => UnitKinds.Format(k), v => Parse(v)).HasMaxLength(32);
         builder.Property(x => x.Name).HasMaxLength(200);
-        builder.Property(x => x.Code).HasMaxLength(16).IsCaseInsensitive();
-        builder.HasIndex(x => new { x.TenantId, x.Code }).IsUnique().HasFilter("is_deleted = false");
+        builder.Property(x => x.Path).HasMaxLength(2000);
+        builder.HasIndex(x => new { x.TenantId, x.Path }).HasOperators("uuid_ops", "text_pattern_ops");
         builder.Property(x => x.Status).IsEnumText();
+        builder.Property(x => x.Tagline).HasMaxLength(300);
+        builder.Property(x => x.About).HasColumnType("text[]");
+        builder.Property(x => x.Locality).HasMaxLength(200);
+        builder.Property(x => x.Address).HasMaxLength(500);
+        builder.Property(x => x.Country).HasMaxLength(2).IsFixedLength();
+        builder.Property(x => x.Phones).HasColumnType("text[]");
         builder.Property(x => x.Email).HasMaxLength(256);
-        builder.Property(x => x.Phone).HasMaxLength(32);
-        builder.Property(x => x.TimeZone).HasMaxLength(64);
-        builder.HasAddress(x => x.Address);
+        builder.OwnsOne(x => x.Cover, b => b.ToJson());
+        builder.OwnsOne(x => x.Avatar, b => b.ToJson());
+        builder.OwnsMany(x => x.Leaders, b => b.ToJson());
+        builder.HasIndex(x => new { x.TenantId, x.ParentId, x.SortOrder });
+        builder.HasIndex(x => new { x.TenantId, x.Kind });
+        builder.HasOne<Unit>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict);
     }
+
+    private static UnitKind Parse(string value) =>
+        UnitKinds.TryParse(value, out var kind) ? kind : throw new InvalidOperationException($"Unknown unit kind '{value}'.");
 }
 
 internal sealed class TenantSettingConfiguration : IEntityTypeConfiguration<TenantSetting>

@@ -4,15 +4,15 @@ namespace Platform.Modules.Identity.Domain;
 
 public enum UserStatus
 {
-    /// <summary>Invited; has not set a password yet.</summary>
+    /// <summary>Invited or created without a password yet.</summary>
     Pending,
     Active,
     Disabled,
 }
 
 /// <summary>
-/// A global login identity. One person has one account across all tenants; access to a
-/// tenant is granted through a <see cref="TenantMembership"/>.
+/// A global login identity. One person has one account across organisations; what they may do in an
+/// organisation comes from their <see cref="TenantMembership"/> there.
 /// </summary>
 public sealed class User : AuditableAggregateRoot
 {
@@ -20,18 +20,17 @@ public sealed class User : AuditableAggregateRoot
 
     public string Email { get; private set; } = null!;
     public bool EmailConfirmed { get; private set; }
-    public string FirstName { get; private set; } = null!;
-    public string LastName { get; private set; } = null!;
-    public string? PhoneNumber { get; private set; }
+    public string Name { get; private set; } = null!;
+    public string? Phone { get; private set; }
     public string? AvatarUrl { get; private set; }
     public UserStatus Status { get; private set; }
 
-    /// <summary>SaaS operator staff. Grants the platform console only — never tenant data.</summary>
+    /// <summary>SaaS operator staff. Grants the platform console only — never an organisation's data.</summary>
     public bool IsPlatformAdmin { get; private set; }
 
     [AuditIgnore] public string? PasswordHash { get; private set; }
 
-    /// <summary>Rotated on credential changes; invalidates outstanding email/reset tokens.</summary>
+    /// <summary>Rotated on credential changes; invalidates outstanding reset links.</summary>
     [AuditIgnore] public string SecurityStamp { get; private set; } = NewStamp();
 
     public int AccessFailedCount { get; private set; }
@@ -42,30 +41,30 @@ public sealed class User : AuditableAggregateRoot
     /// <summary>TOTP shared secret, encrypted at rest with ASP.NET Data Protection.</summary>
     [AuditIgnore] public string? TwoFactorSecret { get; private set; }
 
+    /// <summary>Last accepted TOTP time step — a code can never be used twice.</summary>
+    [AuditIgnore] public long LastTotpStep { get; private set; }
+
     /// <summary>SHA-256 hashes of unused recovery codes.</summary>
     [AuditIgnore] public List<string> RecoveryCodeHashes { get; private set; } = [];
 
     public DateTimeOffset? LastLoginAt { get; private set; }
     public DateTimeOffset? PasswordChangedAt { get; private set; }
 
-    public string FullName => $"{FirstName} {LastName}";
-
-    public static User Create(string email, string firstName, string lastName, string? phoneNumber = null) => new()
+    public static User Create(string email, string name, string? phone = null) => new()
     {
         Email = email.Trim().ToLowerInvariant(),
-        FirstName = firstName.Trim(),
-        LastName = lastName.Trim(),
-        PhoneNumber = phoneNumber,
+        Name = name.Trim(),
+        Phone = phone,
         Status = UserStatus.Pending,
     };
 
-    public void UpdateProfile(string firstName, string lastName, string? phoneNumber, string? avatarUrl)
+    public void UpdateProfile(string name, string? phone)
     {
-        FirstName = firstName.Trim();
-        LastName = lastName.Trim();
-        PhoneNumber = phoneNumber;
-        AvatarUrl = avatarUrl;
+        Name = name.Trim();
+        Phone = phone;
     }
+
+    public void SetAvatar(string? url) => AvatarUrl = url;
 
     public void SetPassword(string passwordHash, DateTimeOffset now)
     {
@@ -78,20 +77,25 @@ public sealed class User : AuditableAggregateRoot
         }
     }
 
-    /// <summary>Transparent re-hash when the hashing algorithm parameters are upgraded.</summary>
+    /// <summary>Carries over a hash already computed for an approved access request.</summary>
+    public void AdoptPasswordHash(string passwordHash, DateTimeOffset now) => SetPassword(passwordHash, now);
+
+    /// <summary>Transparent re-hash when the hashing algorithm or its parameters are upgraded.</summary>
     public void UpgradePasswordHash(string passwordHash) => PasswordHash = passwordHash;
 
     public void ConfirmEmail() => EmailConfirmed = true;
 
     public bool IsLockedOut(DateTimeOffset now) => LockoutEndsAt is { } end && end > now;
 
+    /// <summary>Progressive lockout: each lock after <paramref name="maxAttempts"/> failures doubles, up to a day.</summary>
     public void RegisterFailedLogin(DateTimeOffset now, int maxAttempts, TimeSpan lockoutDuration)
     {
         AccessFailedCount++;
-        if (AccessFailedCount >= maxAttempts)
+        if (AccessFailedCount >= maxAttempts && AccessFailedCount % maxAttempts == 0)
         {
-            LockoutEndsAt = now.Add(lockoutDuration);
-            AccessFailedCount = 0;
+            var strikes = AccessFailedCount / maxAttempts;
+            var duration = TimeSpan.FromTicks(Math.Min(lockoutDuration.Ticks * (1L << Math.Min(strikes - 1, 8)), TimeSpan.FromDays(1).Ticks));
+            LockoutEndsAt = now.Add(duration);
         }
     }
 
@@ -104,11 +108,23 @@ public sealed class User : AuditableAggregateRoot
 
     public void BeginTwoFactorSetup(string protectedSecret) => TwoFactorSecret = protectedSecret;
 
+    /// <summary>Records a used TOTP step; false when the step (or an earlier one) was already used.</summary>
+    public bool ConsumeTotpStep(long step)
+    {
+        if (step <= LastTotpStep)
+        {
+            return false;
+        }
+
+        LastTotpStep = step;
+        return true;
+    }
+
     public void EnableTwoFactor(IEnumerable<string> recoveryCodeHashes)
     {
         if (TwoFactorSecret is null)
         {
-            throw new DomainException("Two-factor setup has not been started.");
+            throw new DomainException("Two-step verification setup hasn’t been started.");
         }
 
         TwoFactorEnabled = true;
@@ -116,10 +132,13 @@ public sealed class User : AuditableAggregateRoot
         SecurityStamp = NewStamp();
     }
 
+    public void ReplaceRecoveryCodes(IEnumerable<string> recoveryCodeHashes) => RecoveryCodeHashes = recoveryCodeHashes.ToList();
+
     public void DisableTwoFactor()
     {
         TwoFactorEnabled = false;
         TwoFactorSecret = null;
+        LastTotpStep = 0;
         RecoveryCodeHashes = [];
         SecurityStamp = NewStamp();
     }

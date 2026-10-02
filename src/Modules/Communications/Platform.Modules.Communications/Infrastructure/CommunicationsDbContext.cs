@@ -20,6 +20,15 @@ public sealed class CommunicationsDbContext(DbContextOptions<CommunicationsDbCon
     public DbSet<MessageDelivery> Deliveries => Set<MessageDelivery>();
     public DbSet<DeviceRegistration> Devices => Set<DeviceRegistration>();
     public DbSet<Notification> Notifications => Set<Notification>();
+
+    public DbSet<AudienceList> Audiences => Set<AudienceList>();
+    public DbSet<AudienceContact> Contacts => Set<AudienceContact>();
+    public DbSet<EmailCampaign> Campaigns => Set<EmailCampaign>();
+    public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+    public DbSet<SendingSettings> SendingSettings => Set<SendingSettings>();
+    public DbSet<SendingDomain> SendingDomains => Set<SendingDomain>();
+    public DbSet<FormDefinition> Forms => Set<FormDefinition>();
+    public DbSet<FormResponseEntry> FormResponses => Set<FormResponseEntry>();
 }
 
 internal sealed class CommunicationsDbContextFactory : DesignTimeFactory<CommunicationsDbContext>, IDesignTimeDbContextFactory<CommunicationsDbContext>

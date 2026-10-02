@@ -26,5 +26,11 @@ internal sealed class InProcessEventDispatcher(IServiceProvider serviceProvider)
         {
             await handler.Handle((TEvent)@event, cancellationToken);
         }
+
+        var publisher = provider.GetService<MediatR.IPublisher>();
+        if (publisher is not null)
+        {
+            await publisher.Publish(@event, cancellationToken);
+        }
     }
 }

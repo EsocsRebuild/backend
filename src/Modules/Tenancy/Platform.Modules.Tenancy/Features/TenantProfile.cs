@@ -55,7 +55,7 @@ public static class GetCurrentTenant
     public static void Map(IEndpointRouteBuilder group) =>
         group.MapGet("/", async (IQueryHandler<Query, TenantResponse> handler, CancellationToken ct) =>
                 (await handler.Handle(new Query(), ct)).ToHttp())
-            .RequirePermission(Permissions.Tenant.Read)
+            .RequirePermission(Permissions.Dashboard.View)
             .WithName("GetCurrentTenant")
             .WithSummary("Get the current organisation profile");
 }
@@ -106,7 +106,7 @@ public static class UpdateCurrentTenant
         group.MapPut("/", async (Command command, ICommandHandler<Command, TenantResponse> handler, CancellationToken ct) =>
                 (await handler.Handle(command, ct)).ToHttp())
             .WithValidation<Command>()
-            .RequirePermission(Permissions.Tenant.Manage)
+            .RequirePermission(Permissions.Organisation.Manage)
             .WithName("UpdateCurrentTenant")
             .WithSummary("Update the current organisation profile");
 }
@@ -145,7 +145,7 @@ public static class ManageTenantDomains
         group.MapPost("/domains", async (AddCommand command, ICommandHandler<AddCommand, TenantDomainResponse> handler, CancellationToken ct) =>
                 (await handler.Handle(command, ct)).ToHttp())
             .WithValidation<AddCommand>()
-            .RequirePermission(Permissions.Tenant.Manage)
+            .RequirePermission(Permissions.Organisation.Manage)
             .WithSummary("Register a custom domain for the public website");
 
         group.MapDelete("/domains/{domainId:guid}", async (Guid domainId, TenancyDbContext db, ITenantContext tenant, CancellationToken ct) =>
@@ -155,7 +155,7 @@ public static class ManageTenantDomains
                 await db.SaveChangesAsync(ct);
                 return TypedResults.NoContent();
             })
-            .RequirePermission(Permissions.Tenant.Manage)
+            .RequirePermission(Permissions.Organisation.Manage)
             .WithSummary("Remove a custom domain");
     }
 }

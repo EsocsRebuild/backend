@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using Platform.Infrastructure;
 using Platform.Infrastructure.Storage;
 using Platform.Web;
+using Platform.Web.Endpoints;
 using Platform.Web.Middleware;
 using Scalar.AspNetCore;
 using Serilog;
@@ -21,6 +22,28 @@ builder.Services
     .AddPlatformWeb()
     .AddApiPlatform(builder.Configuration, builder.Environment);
 
+var signalR = builder.Services.AddSignalR(o =>
+{
+    o.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
+
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+if (!string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    signalR.AddStackExchangeRedis(redisConnectionString, o =>
+    {
+        o.Configuration.ChannelPrefix = StackExchange.Redis.RedisChannel.Literal("church_platform");
+    });
+}
+
+builder.Services.AddSingleton<Platform.Application.RealTime.IChurchRealTimeNotifier, Platform.Api.RealTime.SignalRChurchRealTimeNotifier>();
+
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+    cfg.RegisterServicesFromAssembly(typeof(Platform.Infrastructure.DependencyInjection).Assembly);
+});
+
 foreach (var module in Modules.All)
 {
     module.Register(builder.Services, builder.Configuration);
@@ -35,7 +58,7 @@ app.UseSerilogRequestLogging(o => o.EnrichDiagnosticContext = (diag, http) =>
     diag.Set("UserId", http.User.FindFirst("sub")?.Value);
 });
 app.UseExceptionHandler();
-app.UseStatusCodePages();
+app.UseStatusCodePages(Platform.Web.Errors.StatusCodeEnvelope.WriteAsync);
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
 if (!app.Environment.IsDevelopment())
@@ -52,7 +75,7 @@ if (string.Equals(storage.Provider, "Local", StringComparison.OrdinalIgnoreCase)
     app.UseStaticFiles(new StaticFileOptions { FileProvider = new PhysicalFileProvider(root), RequestPath = storage.PublicBaseUrl });
 }
 
-app.UseCors(ServiceCollectionExtensions.CorsPolicy);
+app.UseCors(Platform.Api.Configuration.ServiceCollectionExtensions.CorsPolicy);
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseRateLimiter();
@@ -64,10 +87,16 @@ app.MapScalarApiReference("/docs", o => o.WithTitle("Platform API"));
 app.MapHealthChecks("/health/live", new() { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new() { Predicate = c => c.Tags.Contains("ready") }).AllowAnonymous();
 
+var api = app.MapApi();
 foreach (var module in Modules.All)
 {
-    module.MapEndpoints(app);
+    module.MapEndpoints(api);
 }
+
+Platform.Api.Features.Dashboard.Map(api);
+
+app.MapHub<Platform.Api.Hubs.ChurchPlatformHub>("/hubs/platform")
+    .RequireCors(Platform.Api.Configuration.ServiceCollectionExtensions.CorsPolicy);
 
 await DatabaseInitializer.InitialiseAsync(app);
 await app.RunAsync();

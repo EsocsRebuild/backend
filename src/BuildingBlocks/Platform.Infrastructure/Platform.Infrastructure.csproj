@@ -13,8 +13,11 @@
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
     <PackageReference Include="MailKit" />
+    <PackageReference Include="MediatR" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Platform.Application\Platform.Application.csproj" />
+    <ProjectReference Include="..\..\Modules\Giving\Platform.Modules.Giving.Contracts\Platform.Modules.Giving.Contracts.csproj" />
+    <ProjectReference Include="..\..\Modules\Communications\Platform.Modules.Communications.Contracts\Platform.Modules.Communications.Contracts.csproj" />
   </ItemGroup>
 </Project>

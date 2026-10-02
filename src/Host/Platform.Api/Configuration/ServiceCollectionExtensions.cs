@@ -36,18 +36,21 @@ internal static class ServiceCollectionExtensions
             o.KnownProxies.Clear();
         });
 
+        var authPerMinute = configuration.GetValue("RateLimits:AuthPerMinute", 20);
+        var publicPerMinute = configuration.GetValue("RateLimits:PublicPerMinute", 300);
+        var userPerMinute = configuration.GetValue("RateLimits:UserPerMinute", 1200);
         services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             o.AddPolicy("public", ctx => RateLimitPartition.GetFixedWindowLimiter(
                 ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                _ => new FixedWindowRateLimiterOptions { PermitLimit = 300, Window = TimeSpan.FromMinutes(1) }));
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = publicPerMinute, Window = TimeSpan.FromMinutes(1) }));
             o.AddPolicy("auth", ctx => RateLimitPartition.GetSlidingWindowLimiter(
                 ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                _ => new SlidingWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), SegmentsPerWindow = 6 }));
+                _ => new SlidingWindowRateLimiterOptions { PermitLimit = authPerMinute, Window = TimeSpan.FromMinutes(1), SegmentsPerWindow = 6 }));
             o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx => RateLimitPartition.GetFixedWindowLimiter(
                 ctx.User.FindFirst("sub")?.Value ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                _ => new FixedWindowRateLimiterOptions { PermitLimit = 1200, Window = TimeSpan.FromMinutes(1) }));
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = userPerMinute, Window = TimeSpan.FromMinutes(1) }));
         });
 
         var health = services.AddHealthChecks()

@@ -22,7 +22,7 @@ public sealed class PlatformFactory : WebApplicationFactory<Program>, IAsyncLife
     public const string OwnerPassword = "Integration!2026";
 
     private readonly string _server = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION")
-        ?? "Host=localhost;Port=5432;Username=postgres;Password=postgres";
+        ?? "Host=localhost;Port=5432;Database=postgres;Username=TechDev";
 
     private readonly string _database = $"platform_test_{Guid.NewGuid():N}";
 
@@ -79,7 +79,8 @@ public sealed class PlatformFactory : WebApplicationFactory<Program>, IAsyncLife
         var response = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password, clientType });
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var token = body.GetProperty("tokens").GetProperty("accessToken").GetString();
+        var root = body.TryGetProperty("data", out var data) ? data : body;
+        var token = root.GetProperty("tokens").GetProperty("accessToken").GetString();
 
         var authed = CreateClient();
         authed.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);

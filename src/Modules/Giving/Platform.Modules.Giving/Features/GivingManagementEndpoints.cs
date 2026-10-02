@@ -31,10 +31,10 @@ public sealed record PledgeResponse(Guid Id, Guid CampaignId, Guid PersonId, str
 public sealed record SavePledgeRequest(Guid CampaignId, Guid PersonId, decimal Amount, PledgeFrequency Frequency, DateOnly? PledgedOn,
     PledgeStatus Status = PledgeStatus.Active, string? Notes = null);
 
-public sealed record BatchResponse(Guid Id, string Name, DateOnly BatchDate, Guid? BranchId, Guid? OccurrenceId, string Currency,
+public sealed record BatchResponse(Guid Id, string Name, DateOnly BatchDate, Guid? UnitId, Guid? OccurrenceId, string Currency,
     decimal? ExpectedTotal, decimal RecordedTotal, int DonationCount, decimal? Variance, string Status, DateTimeOffset? ClosedAt);
 
-public sealed record SaveBatchRequest(string Name, DateOnly BatchDate, string? Currency, Guid? BranchId, Guid? OccurrenceId, decimal? ExpectedTotal);
+public sealed record SaveBatchRequest(string Name, DateOnly BatchDate, string? Currency, Guid? UnitId, Guid? OccurrenceId, decimal? ExpectedTotal);
 
 public sealed record GivingSummaryResponse(
     DateOnly From, DateOnly To, string Currency, decimal Total, int GiftCount, int GiverCount, decimal AverageGift,
@@ -97,29 +97,29 @@ public static class GivingManagementEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var funds = endpoints.MapModuleGroup("funds", "Giving");
-        funds.MapGet("/", ListFunds).RequirePermission(Permissions.Giving.Read).WithSummary("List funds");
-        funds.MapPost("/", CreateFund).WithValidation<SaveFundRequest>().RequirePermission(Permissions.Giving.FundsManage).WithSummary("Create a fund");
-        funds.MapPut("/{id:guid}", UpdateFund).WithValidation<SaveFundRequest>().RequirePermission(Permissions.Giving.FundsManage).WithSummary("Update a fund");
+        funds.MapGet("/", ListFunds).RequirePermission(Permissions.Giving.View).WithSummary("List funds");
+        funds.MapPost("/", CreateFund).WithValidation<SaveFundRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Create a fund");
+        funds.MapPut("/{id:guid}", UpdateFund).WithValidation<SaveFundRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Update a fund");
 
-        var campaigns = endpoints.MapModuleGroup("campaigns", "Giving");
-        campaigns.MapGet("/", ListCampaigns).RequirePermission(Permissions.Giving.Read).WithSummary("Campaigns with progress");
-        campaigns.MapPost("/", CreateCampaign).WithValidation<SaveCampaignRequest>().RequirePermission(Permissions.Giving.PledgesManage).WithSummary("Create a campaign");
-        campaigns.MapPut("/{id:guid}", UpdateCampaign).WithValidation<SaveCampaignRequest>().RequirePermission(Permissions.Giving.PledgesManage).WithSummary("Update a campaign");
-        campaigns.MapGet("/{id:guid}/pledges", ListPledges).RequirePermission(Permissions.Giving.Read).WithSummary("Pledges with fulfilment");
+        var campaigns = endpoints.MapModuleGroup("giving/campaigns", "Giving");
+        campaigns.MapGet("/", ListCampaigns).RequirePermission(Permissions.Giving.View).WithSummary("Campaigns with progress");
+        campaigns.MapPost("/", CreateCampaign).WithValidation<SaveCampaignRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Create a campaign");
+        campaigns.MapPut("/{id:guid}", UpdateCampaign).WithValidation<SaveCampaignRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Update a campaign");
+        campaigns.MapGet("/{id:guid}/pledges", ListPledges).RequirePermission(Permissions.Giving.View).WithSummary("Pledges with fulfilment");
 
         var pledges = endpoints.MapModuleGroup("pledges", "Giving");
-        pledges.MapPost("/", CreatePledge).WithValidation<SavePledgeRequest>().RequirePermission(Permissions.Giving.PledgesManage).WithSummary("Record a pledge");
-        pledges.MapPut("/{id:guid}", UpdatePledge).WithValidation<SavePledgeRequest>().RequirePermission(Permissions.Giving.PledgesManage).WithSummary("Update a pledge");
+        pledges.MapPost("/", CreatePledge).WithValidation<SavePledgeRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Record a pledge");
+        pledges.MapPut("/{id:guid}", UpdatePledge).WithValidation<SavePledgeRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Update a pledge");
 
         var batches = endpoints.MapModuleGroup("batches", "Giving");
-        batches.MapGet("/", ListBatches).RequirePermission(Permissions.Giving.Read).WithSummary("Counting batches with reconciliation");
-        batches.MapPost("/", OpenBatch).WithValidation<SaveBatchRequest>().RequirePermission(Permissions.Giving.BatchesManage).WithSummary("Open a batch");
-        batches.MapPost("/{id:guid}/close", CloseBatch).RequirePermission(Permissions.Giving.BatchesManage).WithSummary("Close and lock a batch");
-        batches.MapPost("/{id:guid}/reopen", ReopenBatch).RequirePermission(Permissions.Giving.BatchesManage).WithSummary("Reopen a closed batch");
+        batches.MapGet("/", ListBatches).RequirePermission(Permissions.Giving.View).WithSummary("Counting batches with reconciliation");
+        batches.MapPost("/", OpenBatch).WithValidation<SaveBatchRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Open a batch");
+        batches.MapPost("/{id:guid}/close", CloseBatch).RequirePermission(Permissions.Giving.Manage).WithSummary("Close and lock a batch");
+        batches.MapPost("/{id:guid}/reopen", ReopenBatch).RequirePermission(Permissions.Giving.Manage).WithSummary("Reopen a closed batch");
 
         var reports = endpoints.MapModuleGroup("giving/reports", "Giving");
         reports.MapGet("/summary", Summary).RequirePermission(Permissions.Giving.Reports).WithSummary("Totals by fund, method and month");
-        reports.MapGet("/statements/{personId:guid}", Statement).RequirePermission(Permissions.Giving.Read).WithSummary("Annual giving statement for a donor");
+        reports.MapGet("/statements/{personId:guid}", Statement).RequirePermission(Permissions.Giving.View).WithSummary("Annual giving statement for a donor");
 
         endpoints.MapPublicGroup("giving", "Public")
             .MapGet("/funds", PublicFunds).WithSummary("Funds offered for online giving");
@@ -143,7 +143,7 @@ public static class GivingManagementEndpoints
     {
         if (await db.Funds.AnyAsync(f => f.Code == r.Code.ToUpper(), ct))
         {
-            return Error.Conflict("fund.code_taken", "Another fund uses this code.").ToProblem();
+            return Error.Conflict("fund.code_taken", "Another fund uses this code.").ToError();
         }
 
         var fund = Fund.Create(r.Name, r.Code, r.Description, r.IsPublic, r.SortOrder);
@@ -158,12 +158,12 @@ public static class GivingManagementEndpoints
         var fund = await db.Funds.FirstOrDefaultAsync(f => f.Id == id, ct);
         if (fund is null)
         {
-            return FundNotFound.ToProblem();
+            return FundNotFound.ToError();
         }
 
         if (await db.Funds.AnyAsync(f => f.Code == r.Code.ToUpper() && f.Id != id, ct))
         {
-            return Error.Conflict("fund.code_taken", "Another fund uses this code.").ToProblem();
+            return Error.Conflict("fund.code_taken", "Another fund uses this code.").ToError();
         }
 
         fund.Update(r.Name, r.Code, r.Description, r.IsActive, r.IsTaxDeductible, r.IsPublic, r.SortOrder);
@@ -196,7 +196,7 @@ public static class GivingManagementEndpoints
     {
         if (!await db.Funds.AnyAsync(f => f.Id == r.FundId, ct))
         {
-            return FundNotFound.ToProblem();
+            return FundNotFound.ToError();
         }
 
         var currency = r.Currency ?? (await tenants.GetAsync(tenant.RequiredTenantId, ct))!.DefaultCurrency;
@@ -212,7 +212,7 @@ public static class GivingManagementEndpoints
         var campaign = await db.Campaigns.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (campaign is null)
         {
-            return CampaignNotFound.ToProblem();
+            return CampaignNotFound.ToError();
         }
 
         campaign.Update(r.Name, r.Description, r.FundId, Money.Of(r.Goal, r.Currency ?? campaign.Goal.Currency), r.StartsOn, r.EndsOn, r.IsActive);
@@ -240,12 +240,12 @@ public static class GivingManagementEndpoints
         var campaign = await db.Campaigns.AsNoTracking().FirstOrDefaultAsync(c => c.Id == r.CampaignId, ct);
         if (campaign is null)
         {
-            return CampaignNotFound.ToProblem();
+            return CampaignNotFound.ToError();
         }
 
         if ((await people.GetSummariesAsync([r.PersonId], ct)).Count == 0)
         {
-            return Error.NotFound("person.not_found", "The person was not found.").ToProblem();
+            return Error.NotFound("person.not_found", "The person was not found.").ToError();
         }
 
         var pledge = Pledge.Create(r.CampaignId, r.PersonId, Money.Of(r.Amount, campaign.Goal.Currency), r.Frequency,
@@ -260,7 +260,7 @@ public static class GivingManagementEndpoints
         var pledge = await db.Pledges.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (pledge is null)
         {
-            return Error.NotFound("pledge.not_found", "The pledge was not found.").ToProblem();
+            return Error.NotFound("pledge.not_found", "The pledge was not found.").ToError();
         }
 
         pledge.Update(Money.Of(r.Amount, pledge.Amount.Currency), r.Frequency, r.Status, r.Notes);
@@ -270,10 +270,12 @@ public static class GivingManagementEndpoints
 
     // ---- Batches ---------------------------------------------------------------------------
 
-    private static async Task<IResult> ListBatches(BatchStatus? status, GivingDbContext db, CancellationToken ct)
+    private static async Task<IResult> ListBatches(BatchStatus? status, GivingDbContext db, ICurrentAccess access, CancellationToken ct)
     {
+        var profile = await access.GetAsync(ct);
         var query = db.Batches.AsNoTracking();
         if (status is { } s) query = query.Where(b => b.Status == s);
+        if (profile?.ScopeUnitId is { } scopeUnitId) query = query.Where(b => b.UnitId == scopeUnitId);
 
         var rows = await query.OrderByDescending(b => b.BatchDate).Take(200)
             .Select(b => new
@@ -284,14 +286,16 @@ public static class GivingManagementEndpoints
             })
             .ToListAsync(ct);
 
-        return Results.Ok(rows.Select(x => new BatchResponse(x.b.Id, x.b.Name, x.b.BatchDate, x.b.BranchId, x.b.OccurrenceId, x.b.Currency,
+        return Results.Ok(rows.Select(x => new BatchResponse(x.b.Id, x.b.Name, x.b.BatchDate, x.b.UnitId, x.b.OccurrenceId, x.b.Currency,
             x.b.ExpectedTotal, x.Total, x.Count, x.b.ExpectedTotal is { } e ? x.Total - e : null, x.b.Status.ToString(), x.b.ClosedAt)));
     }
 
-    private static async Task<IResult> OpenBatch(SaveBatchRequest r, GivingDbContext db, ITenantContext tenant, ITenantDirectory tenants, CancellationToken ct)
+    private static async Task<IResult> OpenBatch(SaveBatchRequest r, GivingDbContext db, ITenantContext tenant, ITenantDirectory tenants, ICurrentAccess access, CancellationToken ct)
     {
+        var profile = await access.GetAsync(ct);
+        var unitId = profile?.ScopeUnitId ?? r.UnitId;
         var currency = r.Currency ?? (await tenants.GetAsync(tenant.RequiredTenantId, ct))!.DefaultCurrency;
-        var batch = DonationBatch.Open(r.Name, r.BatchDate, currency, r.BranchId, r.OccurrenceId, r.ExpectedTotal);
+        var batch = DonationBatch.Open(r.Name, r.BatchDate, currency, unitId, r.OccurrenceId, r.ExpectedTotal);
         db.Batches.Add(batch);
         await db.SaveChangesAsync(ct);
         return Results.Created($"/api/v1/batches/{batch.Id}", new { batch.Id });
@@ -302,7 +306,7 @@ public static class GivingManagementEndpoints
         var batch = await db.Batches.FirstOrDefaultAsync(b => b.Id == id, ct);
         if (batch is null)
         {
-            return BatchNotFound.ToProblem();
+            return BatchNotFound.ToError();
         }
 
         var donations = await db.Donations.Where(d => d.BatchId == id).ToListAsync(ct);
@@ -316,7 +320,7 @@ public static class GivingManagementEndpoints
         var batch = await db.Batches.FirstOrDefaultAsync(b => b.Id == id, ct);
         if (batch is null)
         {
-            return BatchNotFound.ToProblem();
+            return BatchNotFound.ToError();
         }
 
         batch.Reopen(await db.Donations.Where(d => d.BatchId == id).ToListAsync(ct));
@@ -326,18 +330,20 @@ public static class GivingManagementEndpoints
 
     // ---- Reports ---------------------------------------------------------------------------
 
-    private static async Task<IResult> Summary(DateOnly from, DateOnly to, string? currency, Guid? branchId, GivingDbContext db,
-        ITenantContext tenant, ITenantDirectory tenants, CancellationToken ct)
+    private static async Task<IResult> Summary(DateOnly from, DateOnly to, string? currency, Guid? unitId, GivingDbContext db,
+        ITenantContext tenant, ITenantDirectory tenants, ICurrentAccess access, CancellationToken ct)
     {
         if (to < from || to.DayNumber - from.DayNumber > 366 * 3)
         {
-            return Error.Validation("report.range", "Use a range of at most three years.").ToProblem();
+            return Error.Validation("report.range", "Use a range of at most three years.").ToError();
         }
 
+        var profile = await access.GetAsync(ct);
+        var effectiveUnitId = profile?.ScopeUnitId ?? unitId;
         var cur = currency?.ToUpperInvariant() ?? (await tenants.GetAsync(tenant.RequiredTenantId, ct))!.DefaultCurrency;
         var donations = db.Donations.AsNoTracking()
             .Where(d => d.Status == DonationStatus.Completed && d.ReceivedOn >= from && d.ReceivedOn <= to && d.Total.Currency == cur);
-        if (branchId is { } b) donations = donations.Where(d => d.BranchId == b);
+        if (effectiveUnitId is { } b) donations = donations.Where(d => d.UnitId == b);
 
         var total = await donations.SumAsync(d => (decimal?)d.Total.Amount, ct) ?? 0;
         var count = await donations.CountAsync(ct);

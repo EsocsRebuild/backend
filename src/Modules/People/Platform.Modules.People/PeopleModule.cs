@@ -20,12 +20,13 @@ public sealed class PeopleModule : IModule
         services.AddScoped<IPeopleDirectory, PeopleDirectory>();
         services.AddScoped<PersonFactory>();
         services.AddScoped<CustomFieldValidator>();
+        services.AddScoped<MemberScope>();
         services.AddHandlersAndValidators(typeof(PeopleModule).Assembly);
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
-        PeopleEndpoints.Map(endpoints);
+        MembersEndpoints.Map(endpoints);
         CareEndpoints.Map(endpoints);
         MyProfileEndpoints.Map(endpoints);
     }

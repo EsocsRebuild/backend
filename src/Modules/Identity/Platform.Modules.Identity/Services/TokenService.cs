@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -8,35 +7,33 @@ using Platform.Modules.Identity.Domain;
 
 namespace Platform.Modules.Identity.Services;
 
-public sealed record AccessToken(string Token, DateTimeOffset ExpiresAt);
+/// <summary>Token pair returned to clients. Expiry values are in seconds (API contract).</summary>
+public sealed record AuthTokens(string AccessToken, int ExpiresIn, string RefreshToken, int RefreshExpiresIn);
+
+internal sealed record MfaChallenge(Guid UserId, Guid? TenantId, bool Remember, string Stamp);
 
 internal sealed class TokenService(IOptions<AuthOptions> options, TimeProvider clock)
 {
+    private const string MfaAudienceSuffix = ":mfa";
     private readonly JsonWebTokenHandler _handler = new();
 
-    public AccessToken CreateAccessToken(User user, TenantMembership? membership, UserSession? session, ClientType clientType)
+    public (string Token, int ExpiresIn) CreateAccessToken(User user, TenantMembership? membership, UserSession session)
     {
         var o = options.Value;
         var now = clock.GetUtcNow();
-        var expires = now.Add(o.AccessTokenLifetime);
-
         var claims = new Dictionary<string, object>
         {
             [PlatformClaims.UserId] = user.Id.ToString(),
             [PlatformClaims.Email] = user.Email,
-            [PlatformClaims.Name] = user.FullName,
-            [PlatformClaims.ClientType] = clientType.ToString().ToLowerInvariant(),
+            [PlatformClaims.Name] = user.Name,
+            [PlatformClaims.SessionId] = session.Id.ToString(),
+            [PlatformClaims.ClientType] = session.ClientType.ToString().ToLowerInvariant(),
         };
 
         if (membership is not null)
         {
             claims[PlatformClaims.TenantId] = membership.TenantId.ToString();
             claims[PlatformClaims.MembershipId] = membership.Id.ToString();
-        }
-
-        if (session is not null)
-        {
-            claims[PlatformClaims.SessionId] = session.Id.ToString();
         }
 
         if (user.IsPlatformAdmin)
@@ -51,52 +48,57 @@ internal sealed class TokenService(IOptions<AuthOptions> options, TimeProvider c
             Claims = claims,
             IssuedAt = now.UtcDateTime,
             NotBefore = now.UtcDateTime,
-            Expires = expires.UtcDateTime,
+            Expires = now.Add(o.AccessTokenLifetime).UtcDateTime,
             SigningCredentials = new SigningCredentials(SigningKey(o), SecurityAlgorithms.HmacSha256),
         });
 
-        return new AccessToken(token, expires);
+        return (token, (int)o.AccessTokenLifetime.TotalSeconds);
     }
 
-    /// <summary>Short-lived token proving the password step succeeded, exchanged with a TOTP code.</summary>
-    public string CreateTwoFactorChallenge(User user, Guid tenantId)
+    /// <summary>Short-lived proof that the password step succeeded; exchanged with a TOTP or recovery code.</summary>
+    public string CreateMfaChallenge(User user, Guid? tenantId, bool remember)
     {
         var o = options.Value;
-        var now = clock.GetUtcNow();
+        var claims = new Dictionary<string, object>
+        {
+            [PlatformClaims.UserId] = user.Id.ToString(),
+            ["stamp"] = user.SecurityStamp,
+            ["remember"] = remember,
+        };
+        if (tenantId is { } tid)
+        {
+            claims[PlatformClaims.TenantId] = tid.ToString();
+        }
+
         return _handler.CreateToken(new SecurityTokenDescriptor
         {
             Issuer = o.Issuer,
-            Audience = $"{o.Audience}:2fa",
-            Claims = new Dictionary<string, object>
-            {
-                [PlatformClaims.UserId] = user.Id.ToString(),
-                [PlatformClaims.TenantId] = tenantId.ToString(),
-                ["stamp"] = user.SecurityStamp,
-            },
-            Expires = now.AddMinutes(5).UtcDateTime,
+            Audience = o.Audience + MfaAudienceSuffix,
+            Claims = claims,
+            Expires = clock.GetUtcNow().Add(o.MfaChallengeLifetime).UtcDateTime,
             SigningCredentials = new SigningCredentials(SigningKey(o), SecurityAlgorithms.HmacSha256),
         });
     }
 
-    public async Task<(Guid UserId, Guid TenantId, string Stamp)?> ValidateTwoFactorChallengeAsync(string token)
+    public async Task<MfaChallenge?> ReadMfaChallengeAsync(string token)
     {
         var o = options.Value;
         var result = await _handler.ValidateTokenAsync(token, new TokenValidationParameters
         {
             ValidIssuer = o.Issuer,
-            ValidAudience = $"{o.Audience}:2fa",
+            ValidAudience = o.Audience + MfaAudienceSuffix,
             IssuerSigningKey = SigningKey(o),
-            ClockSkew = TimeSpan.FromSeconds(30),
+            ClockSkew = TimeSpan.FromSeconds(10),
         });
 
-        if (!result.IsValid ||
-            !Guid.TryParse(result.Claims[PlatformClaims.UserId]?.ToString(), out var userId) ||
-            !Guid.TryParse(result.Claims[PlatformClaims.TenantId]?.ToString(), out var tenantId))
+        if (!result.IsValid || !Guid.TryParse(result.Claims[PlatformClaims.UserId]?.ToString(), out var userId))
         {
             return null;
         }
 
-        return (userId, tenantId, result.Claims["stamp"]?.ToString() ?? string.Empty);
+        Guid? tenantId = result.Claims.TryGetValue(PlatformClaims.TenantId, out var t) && Guid.TryParse(t?.ToString(), out var parsed) ? parsed : null;
+        var remember = result.Claims.TryGetValue("remember", out var r) && r is true or "true" or "True";
+        return new MfaChallenge(userId, tenantId, remember, result.Claims["stamp"]?.ToString() ?? string.Empty);
     }
 
     public static SymmetricSecurityKey SigningKey(AuthOptions o) => new(Encoding.UTF8.GetBytes(o.SigningKey));
@@ -135,10 +137,4 @@ internal static class RefreshTokenFormat
         secretHash = SecretHasher.Hash(parts[1]);
         return true;
     }
-}
-
-internal static class ClaimsPrincipalExtensions
-{
-    public static Guid? GetGuid(this ClaimsPrincipal principal, string claim) =>
-        Guid.TryParse(principal.FindFirst(claim)?.Value, out var id) ? id : null;
 }

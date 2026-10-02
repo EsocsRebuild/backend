@@ -101,6 +101,101 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                     b.ToTable("audit_entries", "audit");
                 });
 
+            modelBuilder.Entity("Platform.Infrastructure.Auditing.AuditEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("ActorEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("actor_email");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("ActorName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("actor_name");
+
+                    b.Property<string>("Changes")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("changes");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("ip_address");
+
+                    b.Property<string>("RequestId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("severity");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("summary");
+
+                    b.Property<string>("TargetId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("target_id");
+
+                    b.Property<string>("TargetLabel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("target_label");
+
+                    b.Property<string>("TargetType")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("target_type");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("user_agent");
+
+                    b.HasKey("Id")
+                        .HasName("pk_audit_events");
+
+                    b.HasIndex("TenantId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_events_tenant_id_created_at");
+
+                    b.HasIndex("TenantId", "ActorId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_events_tenant_id_actor_id_created_at");
+
+                    b.HasIndex("TenantId", "Severity", "CreatedAt")
+                        .HasDatabaseName("ix_audit_events_tenant_id_severity_created_at");
+
+                    b.ToTable("audit_events", "audit");
+                });
+
             modelBuilder.Entity("Platform.Infrastructure.Outbox.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -173,6 +268,123 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                         .HasName("pk_number_sequences");
 
                     b.ToTable("number_sequences", "identity");
+                });
+
+            modelBuilder.Entity("Platform.Modules.Identity.Domain.AccessRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("citext")
+                        .HasColumnName("email");
+
+                    b.Property<DateTimeOffset?>("EmailVerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("email_verified_at");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<Guid?>("MembershipId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("membership_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("ParishId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parish_id");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("password_hash");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<Guid?>("RequestedRoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_role_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_access_requests");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_access_requests_tenant_id");
+
+                    b.HasIndex("TenantId", "Email")
+                        .HasDatabaseName("ix_access_requests_tenant_id_email");
+
+                    b.HasIndex("TenantId", "Status", "CreatedAt")
+                        .HasDatabaseName("ix_access_requests_tenant_id_status_created_at");
+
+                    b.ToTable("access_requests", "identity");
                 });
 
             modelBuilder.Entity("Platform.Modules.Identity.Domain.ApiKey", b =>
@@ -286,6 +498,62 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                     b.ToTable("membership_roles", "identity");
                 });
 
+            modelBuilder.Entity("Platform.Modules.Identity.Domain.OneTimeCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("code_hash");
+
+                    b.Property<DateTimeOffset?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consumed_at");
+
+                    b.Property<string>("Destination")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("citext")
+                        .HasColumnName("destination");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("purpose");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_one_time_codes");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_one_time_codes_expires_at");
+
+                    b.HasIndex("TenantId", "Purpose", "Destination", "SentAt")
+                        .HasDatabaseName("ix_one_time_codes_tenant_id_purpose_destination_sent_at");
+
+                    b.ToTable("one_time_codes", "identity");
+                });
+
             modelBuilder.Entity("Platform.Modules.Identity.Domain.Role", b =>
                 {
                     b.Property<Guid>("Id")
@@ -309,21 +577,31 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                         .HasColumnName("deleted_by");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
+                        .HasMaxLength(280)
+                        .HasColumnType("character varying(280)")
                         .HasColumnName("description");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("icon");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean")
                         .HasColumnName("is_deleted");
 
-                    b.Property<bool>("IsSystem")
+                    b.Property<bool>("IsLocked")
                         .HasColumnType("boolean")
-                        .HasColumnName("is_system");
+                        .HasColumnName("is_locked");
+
+                    b.Property<bool>("IsRequestable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_requestable");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(100)
+                        .HasMaxLength(60)
                         .HasColumnType("citext")
                         .HasColumnName("name");
 
@@ -331,6 +609,11 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text[]")
                         .HasColumnName("permissions");
+
+                    b.Property<string>("SystemKey")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("system_key");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
@@ -364,6 +647,81 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                     b.ToTable("roles", "identity");
                 });
 
+            modelBuilder.Entity("Platform.Modules.Identity.Domain.StaffInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepted_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("citext")
+                        .HasColumnName("email");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("InvitedByName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("invited_by_name");
+
+                    b.Property<Guid>("MembershipId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("membership_id");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("token_hash");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_invitations");
+
+                    b.HasIndex("MembershipId")
+                        .HasDatabaseName("ix_invitations_membership_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_invitations_tenant_id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_invitations_token_hash");
+
+                    b.ToTable("invitations", "identity");
+                });
+
             modelBuilder.Entity("Platform.Modules.Identity.Domain.TenantMembership", b =>
                 {
                     b.Property<Guid>("Id")
@@ -377,10 +735,6 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
-
-                    b.Property<Guid?>("DefaultBranchId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("default_branch_id");
 
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
@@ -402,9 +756,23 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("joined_at");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset?>("LastActiveAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_active_at");
+
                     b.Property<Guid?>("PersonId")
                         .HasColumnType("uuid")
                         .HasColumnName("person_id");
+
+                    b.Property<Guid?>("ScopeUnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_unit_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -446,9 +814,12 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                     b.HasIndex("TenantId", "PersonId")
                         .HasDatabaseName("ix_memberships_tenant_id_person_id");
 
-                    b.HasIndex("TenantId", "UserId")
+                    b.HasIndex("TenantId", "Kind", "Status")
+                        .HasDatabaseName("ix_memberships_tenant_id_kind_status");
+
+                    b.HasIndex("TenantId", "UserId", "Kind")
                         .IsUnique()
-                        .HasDatabaseName("ix_memberships_tenant_id_user_id")
+                        .HasDatabaseName("ix_memberships_tenant_id_user_id_kind")
                         .HasFilter("is_deleted = false");
 
                     b.ToTable("memberships", "identity");
@@ -487,12 +858,6 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("email_confirmed");
 
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("first_name");
-
                     b.Property<bool>("IsPlatformAdmin")
                         .HasColumnType("boolean")
                         .HasColumnName("is_platform_admin");
@@ -501,15 +866,19 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_login_at");
 
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("last_name");
+                    b.Property<long>("LastTotpStep")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_totp_step");
 
                     b.Property<DateTimeOffset?>("LockoutEndsAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("lockout_ends_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
 
                     b.Property<DateTimeOffset?>("PasswordChangedAt")
                         .HasColumnType("timestamp with time zone")
@@ -520,10 +889,10 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                         .HasColumnType("character varying(512)")
                         .HasColumnName("password_hash");
 
-                    b.Property<string>("PhoneNumber")
+                    b.Property<string>("Phone")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
-                        .HasColumnName("phone_number");
+                        .HasColumnName("phone");
 
                     b.PrimitiveCollection<List<string>>("RecoveryCodeHashes")
                         .IsRequired()
@@ -591,11 +960,6 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<string>("DeviceName")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)")
-                        .HasColumnName("device_name");
-
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
@@ -618,6 +982,10 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("previous_token_hash");
 
+                    b.Property<bool>("Remember")
+                        .HasColumnType("boolean")
+                        .HasColumnName("remember");
+
                     b.Property<DateTimeOffset?>("RevokedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("revoked_at");
@@ -630,6 +998,15 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("RotatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("rotated_at");
+
+                    b.Property<DateTimeOffset?>("SudoExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sudo_expires_at");
+
+                    b.Property<string>("SudoTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sudo_token_hash");
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uuid")
@@ -656,6 +1033,9 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                     b.HasIndex("ExpiresAt")
                         .HasDatabaseName("ix_sessions_expires_at");
 
+                    b.HasIndex("MembershipId")
+                        .HasDatabaseName("ix_sessions_membership_id");
+
                     b.HasIndex("UserId", "RevokedAt")
                         .HasDatabaseName("ix_sessions_user_id_revoked_at");
 
@@ -674,9 +1054,19 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                     b.HasOne("Platform.Modules.Identity.Domain.Role", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_membership_roles_roles_role_id");
+                });
+
+            modelBuilder.Entity("Platform.Modules.Identity.Domain.StaffInvitation", b =>
+                {
+                    b.HasOne("Platform.Modules.Identity.Domain.TenantMembership", null)
+                        .WithMany()
+                        .HasForeignKey("MembershipId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_invitations_memberships_membership_id");
                 });
 
             modelBuilder.Entity("Platform.Modules.Identity.Domain.TenantMembership", b =>
@@ -687,6 +1077,34 @@ namespace Platform.Modules.Identity.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_memberships_users_user_id");
+
+                    b.OwnsOne("Platform.Modules.Identity.Domain.NotificationPreferences", "NotificationPreferences", b1 =>
+                        {
+                            b1.Property<Guid>("TenantMembershipId");
+
+                            b1.Property<bool>("AccessRequests");
+
+                            b1.Property<bool>("CampaignReports");
+
+                            b1.Property<bool>("FormResponses");
+
+                            b1.Property<bool>("WeeklySummary");
+
+                            b1.HasKey("TenantMembershipId");
+
+                            b1.ToTable("memberships", "identity");
+
+                            b1
+                                .ToJson("notification_preferences")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("TenantMembershipId")
+                                .HasConstraintName("fk_memberships_memberships_id");
+                        });
+
+                    b.Navigation("NotificationPreferences")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Platform.Modules.Identity.Domain.UserSession", b =>
