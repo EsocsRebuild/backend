@@ -23,6 +23,8 @@ Welcome to the comprehensive API Reference document for the Platform backend API
 5. [Key Response Shapes](#5-key-response-shapes)
 6. [Permissions Catalogue](#6-permissions-catalogue)
 7. [Error Code Reference](#7-error-code-reference)
+8. [Real-Time Hub (SignalR & Redis Backplane)](#8-real-time-hub-signalr--redis-backplane)
+9. [Keyset (Cursor) Pagination](#9-keyset-cursor-pagination)
 
 ---
 
@@ -500,3 +502,56 @@ When creating or editing Roles, use these exact string identifiers:
 | `tenant.suspended` | 403 | The tenant account has been suspended by the platform administrator. |
 | `rate_limit.exceeded` | 429 | Too many requests. Retry after the window resets. |
 | `server.internal` | 500 | An unexpected internal platform exception occurred. |
+
+---
+
+## 8. Real-Time Hub (SignalR & Redis Backplane)
+
+- **Hub Endpoint:** `ws://localhost:5080/hubs/platform` (or `http://localhost:5080/hubs/platform`)
+- **Authentication:** Query parameter `?access_token=<JWT>` or `Authorization: Bearer <JWT>` header
+- **Backplane:** Redis distributed pub/sub via `ConnectionStrings:Redis`
+
+### Client Subscriptions (Hub Invocations)
+| Method | Arguments | Channel / Group Subscribed |
+|---|---|---|
+| `JoinPrayerWall` | *(none)* | `prayer:wall:global` |
+| `LeavePrayerWall` | *(none)* | `prayer:wall:global` |
+| `JoinCampaignRoom` | `campaignId: Guid` | `finance:campaign:{campaignId}` |
+| `LeaveCampaignRoom` | `campaignId: Guid` | `finance:campaign:{campaignId}` |
+| `JoinLiveService` | `branchId: Guid` | `service:stream:{branchId}` |
+| `LeaveLiveService` | `branchId: Guid` | `service:stream:{branchId}` |
+| `JoinEcclesiasticalRoom` | `wing: OrgWing`, `tier: OrgTier`, `unitId: Guid` | `wing:{wing}:tier:{tier}:{unitId}` |
+| `LeaveEcclesiasticalRoom` | `wing: OrgWing`, `tier: OrgTier`, `unitId: Guid` | `wing:{wing}:tier:{tier}:{unitId}` |
+
+### Server-to-Client Broadcast Events
+| SignalR Event | Parameters | Broadcast Trigger / Description |
+|---|---|---|
+| `ReceivePrayerUpdate` | `Guid prayerId, string title, string requesterName, string excerpt, DateTimeOffset createdAt` | Published whenever a new prayer request is approved or created for the global prayer wall |
+| `ReceiveCampaignProgress` | `Guid campaignId, decimal raisedAmount, decimal goalAmount, decimal percentage` | Published by the Outbox processor when a donation is cleared for a campaign |
+| `ReceiveEcclesiasticalNotification` | `Guid unitId, string title, string message, string urgency` | Ecclesiastical announcements scoped by hierarchy |
+| `ReceiveServiceEvent` | `Guid branchId, string eventType, string payloadJson` | Live service streaming milestones, attendance pings, and service transitions |
+
+---
+
+## 9. Keyset (Cursor) Pagination
+
+For mobile applications, real-time live feeds, and high-frequency list queries, the platform provides keyset pagination endpoints that operate in \(O(1)\) database query time regardless of cursor depth:
+
+- `GET /api/v1/donations/keyset?cursor={cursor}&limit=25&ascending=false`
+- `GET /api/v1/members/keyset?cursor={cursor}&limit=25&ascending=false`
+
+### Request Shape
+`KeysetRequest<string>`:
+- `Cursor` (optional string): Composite cursor token (e.g., `{ReceivedOn:O}_{Id}` or `{CreatedAt:O}_{Id}`).
+- `Limit` (int, default 25, clamped 1–100): Maximum records to fetch per batch.
+- `Ascending` (bool, default false): Sorting direction.
+
+### Response Shape
+```typescript
+interface KeysetResponse<TItem, TKey> {
+  items: TItem[];
+  nextCursor: TKey | null;
+  hasMore: boolean;
+}
+```
+
