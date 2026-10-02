@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -45,65 +46,74 @@ public sealed class OutboxProcessorBackgroundService(
 
     private async Task ProcessModuleOutboxAsync(IServiceProvider serviceProvider, ModuleDbContext context, CancellationToken cancellationToken)
     {
-        // Handled securely via module execution strategy
         try
         {
-            await context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
-            {
-                context.ChangeTracker.Clear();
-                await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-
-#pragma warning disable EF1002 // Schema is a compile-time constant owned by module
-                var messages = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
-                    context.OutboxMessages.FromSqlRaw($$"""
-                        SELECT * FROM "{{context.Schema}}".outbox_messages
-                        WHERE processed_at IS NULL AND attempts < {0}
-                        ORDER BY occurred_at
-                        LIMIT {1}
-                        FOR UPDATE SKIP LOCKED
-                        """, options.Value.MaxAttempts, options.Value.BatchSize),
-                    cancellationToken);
-#pragma warning restore EF1002
-
-                if (messages.Count == 0)
+            await context.Database.CreateExecutionStrategy().ExecuteAsync(
+                (Context: context, Service: this, Token: cancellationToken),
+                static async (_, state, ct) =>
                 {
-                    return;
-                }
-
-                foreach (var message in messages)
-                {
-                    message.Attempts++;
-                    try
-                    {
-                        var type = Type.GetType(message.Type, throwOnError: false);
-                        if (type is not null && System.Text.Json.JsonSerializer.Deserialize(
-                            message.Content, type, Platform.Infrastructure.Persistence.Interceptors.PlatformSaveChangesInterceptor.EventSerializerOptions) is Platform.SharedKernel.Domain.IDomainEvent domainEvent)
-                        {
-                            await using var handlerScope = scopeFactory.CreateAsyncScope();
-                            handlerScope.ServiceProvider.GetRequiredService<Platform.Application.Tenancy.ITenantContextSetter>().SetTenant(message.TenantId);
-                            await handlerScope.ServiceProvider.GetRequiredService<Platform.Application.Messaging.IEventDispatcher>().DispatchAsync(domainEvent, cancellationToken);
-                            message.ProcessedAt = DateTimeOffset.UtcNow;
-                            message.Error = null;
-                        }
-                        else
-                        {
-                            message.Error = $"Unknown or deserialization failed for event type '{message.Type}'.";
-                        }
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        message.Error = ex.ToString()[..Math.Min(ex.ToString().Length, 4000)];
-                        logger.LogWarning(ex, "Outbox message {MessageId} ({Type}) failed on attempt {Attempt}", message.Id, message.Type, message.Attempts);
-                    }
-                }
-
-                await context.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-            });
+                    await state.Service.ClaimAndDispatchBatchAsync(state.Context, ct);
+                    return true;
+                },
+                verifySucceeded: null,
+                cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Failed to claim and dispatch outbox batch for schema {Schema}", context.Schema);
         }
+    }
+
+    private async Task ClaimAndDispatchBatchAsync(ModuleDbContext context, CancellationToken cancellationToken)
+    {
+        context.ChangeTracker.Clear();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+#pragma warning disable EF1002 // Schema is a compile-time constant owned by module
+        var messages = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+            context.OutboxMessages.FromSqlRaw($$"""
+                SELECT * FROM "{{context.Schema}}".outbox_messages
+                WHERE processed_at IS NULL AND attempts < {0}
+                ORDER BY occurred_at
+                LIMIT {1}
+                FOR UPDATE SKIP LOCKED
+                """, options.Value.MaxAttempts, options.Value.BatchSize),
+            cancellationToken);
+#pragma warning restore EF1002
+
+        if (messages.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var message in messages)
+        {
+            message.Attempts++;
+            try
+            {
+                var type = Type.GetType(message.Type, throwOnError: false);
+                if (type is not null && System.Text.Json.JsonSerializer.Deserialize(
+                    message.Content, type, Platform.Infrastructure.Persistence.Interceptors.PlatformSaveChangesInterceptor.EventSerializerOptions) is Platform.SharedKernel.Domain.IDomainEvent domainEvent)
+                {
+                    await using var handlerScope = scopeFactory.CreateAsyncScope();
+                    handlerScope.ServiceProvider.GetRequiredService<Platform.Application.Tenancy.ITenantContextSetter>().SetTenant(message.TenantId);
+                    await handlerScope.ServiceProvider.GetRequiredService<Platform.Application.Messaging.IEventDispatcher>().DispatchAsync(domainEvent, cancellationToken);
+                    message.ProcessedAt = DateTimeOffset.UtcNow;
+                    message.Error = null;
+                }
+                else
+                {
+                    message.Error = $"Unknown or deserialization failed for event type '{message.Type}'.";
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                message.Error = ex.ToString()[..Math.Min(ex.ToString().Length, 4000)];
+                logger.LogWarning(ex, "Outbox message {MessageId} ({Type}) failed on attempt {Attempt}", message.Id, message.Type, message.Attempts);
+            }
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 }

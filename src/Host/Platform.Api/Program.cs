@@ -75,7 +75,7 @@ if (string.Equals(storage.Provider, "Local", StringComparison.OrdinalIgnoreCase)
     app.UseStaticFiles(new StaticFileOptions { FileProvider = new PhysicalFileProvider(root), RequestPath = storage.PublicBaseUrl });
 }
 
-app.UseCors(ServiceCollectionExtensions.CorsPolicy);
+app.UseCors(Platform.Api.Configuration.ServiceCollectionExtensions.CorsPolicy);
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseRateLimiter();
@@ -96,7 +96,7 @@ foreach (var module in Modules.All)
 Platform.Api.Features.Dashboard.Map(api);
 
 app.MapHub<Platform.Api.Hubs.ChurchPlatformHub>("/hubs/platform")
-    .RequireCors(ServiceCollectionExtensions.CorsPolicy);
+    .RequireCors(Platform.Api.Configuration.ServiceCollectionExtensions.CorsPolicy);
 
 await DatabaseInitializer.InitialiseAsync(app);
 await app.RunAsync();

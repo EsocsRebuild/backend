@@ -115,6 +115,7 @@ public static class MembersEndpoints
     {
         var group = endpoints.MapModuleGroup("members", "Members");
         group.MapGet("/", List).RequirePermission(Permissions.Members.View).WithSummary("Search members");
+        group.MapGet("/keyset", KeysetList).RequirePermission(Permissions.Members.View).WithSummary("Keyset paginated members");
         group.MapGet("/export", Export).RequirePermission(Permissions.Members.Export).WithSummary("Download members as CSV");
         group.MapGet("/stats", Stats).RequirePermission(Permissions.Members.View).WithSummary("Membership figures and upcoming celebrations");
         group.MapGet("/{id:guid}", Get).RequirePermission(Permissions.Members.View).WithSummary("A member");
@@ -194,6 +195,52 @@ public static class MembersEndpoints
         var people = await Sorted(query, page).Skip(page.Skip).Take(page.SafePageSize).ToListAsync(ct);
         var unitMap = await units.GetAsync(people.Where(p => p.UnitId != null).Select(p => p.UnitId!.Value), ct);
         return Results.Ok(new PagedResult<MemberSummaryResponse>(people.Select(p => ToSummary(p, unitMap)).ToList(), page.SafePage, page.SafePageSize, total));
+    }
+
+    private static async Task<IResult> KeysetList(
+        [AsParameters] KeysetRequest<string> request,
+        PeopleDbContext db,
+        MemberScope scope,
+        IUnitDirectory units,
+        CancellationToken ct)
+    {
+        var limit = request.SafeLimit;
+        var query = await scope.ApplyAsync(db.People.AsNoTracking(), ct);
+
+        if (!string.IsNullOrWhiteSpace(request.Cursor))
+        {
+            var parts = request.Cursor.Split('_', 2);
+            if (parts.Length == 2 && DateTimeOffset.TryParse(parts[0], out var cursorDate) && Guid.TryParse(parts[1], out var cursorId))
+            {
+                if (request.Ascending)
+                {
+                    query = query.Where(p => p.CreatedAt > cursorDate || (p.CreatedAt == cursorDate && p.Id.CompareTo(cursorId) > 0));
+                }
+                else
+                {
+                    query = query.Where(p => p.CreatedAt < cursorDate || (p.CreatedAt == cursorDate && p.Id.CompareTo(cursorId) < 0));
+                }
+            }
+        }
+
+        query = request.Ascending
+            ? query.OrderBy(p => p.CreatedAt).ThenBy(p => p.Id)
+            : query.OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id);
+
+        var fetched = await query.Take(limit + 1).ToListAsync(ct);
+        var hasMore = fetched.Count > limit;
+        var people = hasMore ? fetched.Take(limit).ToList() : fetched;
+
+        string? nextCursor = null;
+        if (hasMore && people.Count > 0)
+        {
+            var last = people[^1];
+            nextCursor = $"{last.CreatedAt:O}_{last.Id}";
+        }
+
+        var unitMap = await units.GetAsync(people.Where(p => p.UnitId != null).Select(p => p.UnitId!.Value), ct);
+        var summaries = people.Select(p => ToSummary(p, unitMap)).ToList();
+        return Results.Ok(new KeysetResponse<MemberSummaryResponse, string>(summaries, nextCursor, hasMore));
     }
 
     private static async Task<Person?> FindAsync(Guid id, PeopleDbContext db, MemberScope scope, bool tracking, CancellationToken ct)

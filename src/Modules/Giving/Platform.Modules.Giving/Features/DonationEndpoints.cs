@@ -133,6 +133,7 @@ public static class DonationEndpoints
     {
         var group = endpoints.MapModuleGroup("donations", "Giving");
         group.MapGet("/", List).RequirePermission(Permissions.Giving.View).WithSummary("Search donations");
+        group.MapGet("/keyset", KeysetList).RequirePermission(Permissions.Giving.View).WithSummary("Keyset paginated donations");
         group.MapGet("/{id:guid}", Get).RequirePermission(Permissions.Giving.View).WithSummary("Get a donation");
         group.MapPost("/", Record).WithValidation<RecordDonationRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Record a gift (cash, cheque, transfer…)");
         group.MapPut("/{id:guid}", Update).WithValidation<RecordDonationRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Correct a gift (open batches only)");
@@ -181,6 +182,56 @@ public static class DonationEndpoints
         var items = await query.OrderByDescending(d => d.ReceivedOn).ThenByDescending(d => d.CreatedAt)
             .Skip(page.Skip).Take(page.SafePageSize).ToListAsync(ct);
         return Results.Ok(new PagedResult<DonationResponse>(await ToResponsesAsync(db, items, ct), page.SafePage, page.SafePageSize, total));
+    }
+
+    private static async Task<IResult> KeysetList(
+        [AsParameters] KeysetRequest<string> request,
+        GivingDbContext db,
+        ICurrentAccess currentAccess,
+        CancellationToken ct)
+    {
+        var limit = request.SafeLimit;
+        var query = db.Donations.AsNoTracking().Include(d => d.Allocations).AsQueryable();
+
+        var access = await currentAccess.GetAsync(ct);
+        if (access?.ScopeUnitId is { } uid)
+        {
+            query = query.Where(d => d.UnitId == uid);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Cursor))
+        {
+            var parts = request.Cursor.Split('_', 2);
+            if (parts.Length == 2 && DateOnly.TryParse(parts[0], out var cursorDate) && Guid.TryParse(parts[1], out var cursorId))
+            {
+                if (request.Ascending)
+                {
+                    query = query.Where(d => d.ReceivedOn > cursorDate || (d.ReceivedOn == cursorDate && d.Id.CompareTo(cursorId) > 0));
+                }
+                else
+                {
+                    query = query.Where(d => d.ReceivedOn < cursorDate || (d.ReceivedOn == cursorDate && d.Id.CompareTo(cursorId) < 0));
+                }
+            }
+        }
+
+        query = request.Ascending
+            ? query.OrderBy(d => d.ReceivedOn).ThenBy(d => d.Id)
+            : query.OrderByDescending(d => d.ReceivedOn).ThenByDescending(d => d.Id);
+
+        var fetched = await query.Take(limit + 1).ToListAsync(ct);
+        var hasMore = fetched.Count > limit;
+        var items = hasMore ? fetched.Take(limit).ToList() : fetched;
+
+        string? nextCursor = null;
+        if (hasMore && items.Count > 0)
+        {
+            var last = items[^1];
+            nextCursor = $"{last.ReceivedOn:yyyy-MM-dd}_{last.Id}";
+        }
+
+        var responses = await ToResponsesAsync(db, items, ct);
+        return Results.Ok(new KeysetResponse<DonationResponse, string>(responses, nextCursor, hasMore));
     }
 
     private static async Task<IResult> Get(Guid id, GivingDbContext db, CancellationToken ct)
