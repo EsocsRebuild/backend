@@ -123,7 +123,7 @@ public sealed class DonationBatch : TenantAggregateRoot
 
     public string Name { get; private set; } = null!;
     public DateOnly BatchDate { get; private set; }
-    public Guid? BranchId { get; private set; }
+    public Guid? UnitId { get; private set; }
     public Guid? OccurrenceId { get; private set; }
     public string Currency { get; private set; } = null!;
 
@@ -134,12 +134,12 @@ public sealed class DonationBatch : TenantAggregateRoot
     public DateTimeOffset? ClosedAt { get; private set; }
     public Guid? ClosedBy { get; private set; }
 
-    public static DonationBatch Open(string name, DateOnly date, string currency, Guid? branchId, Guid? occurrenceId, decimal? expectedTotal) => new()
+    public static DonationBatch Open(string name, DateOnly date, string currency, Guid? unitId, Guid? occurrenceId, decimal? expectedTotal) => new()
     {
         Name = name.Trim(),
         BatchDate = date,
         Currency = currency.ToUpperInvariant(),
-        BranchId = branchId,
+        UnitId = unitId,
         OccurrenceId = occurrenceId,
         ExpectedTotal = expectedTotal,
         Status = BatchStatus.Open,

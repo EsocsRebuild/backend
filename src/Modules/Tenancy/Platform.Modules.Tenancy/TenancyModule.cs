@@ -21,6 +21,8 @@ public sealed class TenancyModule : IModule
         services.AddModuleDbContext<TenancyDbContext>(configuration, TenancyDbContext.SchemaName);
         services.AddScoped<ITenantLookup, TenantLookup>();
         services.AddScoped<ITenantDirectory, TenantDirectory>();
+        services.AddScoped<UnitDirectory>();
+        services.AddScoped<IUnitDirectory>(sp => sp.GetRequiredService<UnitDirectory>());
         services.AddHandlersAndValidators(typeof(TenancyModule).Assembly);
     }
 
@@ -31,7 +33,7 @@ public sealed class TenancyModule : IModule
         UpdateCurrentTenant.Map(tenant);
         ManageTenantDomains.Map(tenant);
 
-        Branches.Map(endpoints);
+        Units.Map(endpoints);
         Settings.Map(endpoints);
         PlatformTenants.Map(endpoints);
         PublicTenant.Map(endpoints);

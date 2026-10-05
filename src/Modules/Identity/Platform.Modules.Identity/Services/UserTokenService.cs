@@ -1,29 +1,25 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Options;
 using Platform.Modules.Identity.Domain;
 
 namespace Platform.Modules.Identity.Services;
 
-public enum UserTokenPurpose
-{
-    ConfirmEmail,
-    ResetPassword,
-    AcceptInvitation,
-}
-
 /// <summary>
-/// Stateless, time-limited, single-purpose tokens for email links. Each token embeds the user's
-/// security stamp, so it becomes invalid as soon as the password (or 2FA) changes.
+/// Stateless, time-limited password-reset tokens. Each embeds the user's security stamp, so a token dies
+/// as soon as it is used (the reset rotates the stamp) or the password changes any other way.
 /// </summary>
-public sealed class UserTokenService(IDataProtectionProvider provider)
+public sealed class UserTokenService(IDataProtectionProvider provider, IOptions<AuthOptions> options)
 {
-    public string Create(User user, UserTokenPurpose purpose, TimeSpan lifetime) =>
-        Protector(purpose).Protect($"{user.Id:N}|{user.SecurityStamp}", lifetime);
+    private ITimeLimitedDataProtector Protector => provider.CreateProtector("identity.password-reset.v1").ToTimeLimitedDataProtector();
 
-    public (Guid UserId, string Stamp)? Read(string token, UserTokenPurpose purpose)
+    public string CreatePasswordReset(User user) =>
+        Protector.Protect($"{user.Id:N}|{user.SecurityStamp}", options.Value.PasswordResetLifetime);
+
+    public (Guid UserId, string Stamp)? ReadPasswordReset(string token)
     {
         try
         {
-            var parts = Protector(purpose).Unprotect(token).Split('|');
+            var parts = Protector.Unprotect(token).Split('|');
             return parts.Length == 2 && Guid.TryParseExact(parts[0], "N", out var id) ? (id, parts[1]) : null;
         }
         catch (System.Security.Cryptography.CryptographicException)
@@ -31,7 +27,4 @@ public sealed class UserTokenService(IDataProtectionProvider provider)
             return null;
         }
     }
-
-    private ITimeLimitedDataProtector Protector(UserTokenPurpose purpose) =>
-        provider.CreateProtector($"identity.user-token.{purpose}").ToTimeLimitedDataProtector();
 }

@@ -7,8 +7,9 @@ using Platform.Modules.People.Infrastructure;
 namespace Platform.Modules.People.Features;
 
 /// <summary>
-/// When an account is created in a tenant, link it to the matching person (same email, no account yet)
-/// or create a new person profile. Idempotent.
+/// When an account is created in an organisation, link it to the matching person (same email, no account yet).
+/// Website / app member accounts without a match get a new profile, awaiting approval; staff accounts are
+/// only linked (an administrator isn't necessarily a member). Idempotent.
 /// </summary>
 internal sealed class AccountLinking(PeopleDbContext db, PersonFactory factory) : IEventHandler<MemberAccountCreatedIntegrationEvent>
 {
@@ -27,10 +28,18 @@ internal sealed class AccountLinking(PeopleDbContext db, PersonFactory factory) 
 
         if (person is null)
         {
-            person = await factory.CreateAsync(e.FirstName, e.LastName, MembershipStatus.Visitor, cancellationToken);
+            if (e.Kind != "Member")
+            {
+                return;
+            }
+
+            var names = e.Name.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            var (first, last) = (names.ElementAtOrDefault(0) ?? e.Name, names.ElementAtOrDefault(1) ?? string.Empty);
+            person = await factory.CreateAsync(first, last, MembershipStatus.Visitor, cancellationToken);
             person.UpdateProfile(new PersonProfile(
-                null, e.FirstName, null, e.LastName, null, Gender.Unspecified, null, MaritalStatus.Unspecified, null, email,
-                e.PhoneNumber, null, null, null, null, null, "app-registration", false, null, null, null, null, null));
+                null, first, null, last, null, Gender.Unspecified, null, MaritalStatus.Unspecified, null, email,
+                e.Phone, null, null, null, null, null, "website", false, null, null, null, null, null));
+            person.SetStatus(RecordStatus.Pending);
             db.People.Add(person);
         }
 

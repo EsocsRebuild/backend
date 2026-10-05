@@ -14,20 +14,36 @@ public sealed class AuthOptions
 
     public TimeSpan AccessTokenLifetime { get; set; } = TimeSpan.FromMinutes(15);
 
-    /// <summary>Refresh token idle timeout — renewed on each use.</summary>
-    public TimeSpan RefreshTokenSlidingLifetime { get; set; } = TimeSpan.FromDays(30);
+    /// <summary>Session length without "keep me signed in".</summary>
+    public TimeSpan SessionLifetime { get; set; } = TimeSpan.FromHours(12);
 
-    /// <summary>Hard cap on a session regardless of activity.</summary>
-    public TimeSpan RefreshTokenAbsoluteLifetime { get; set; } = TimeSpan.FromDays(90);
+    /// <summary>Session length with "keep me signed in" (sliding, capped by <see cref="RememberedAbsoluteLifetime"/>).</summary>
+    public TimeSpan RememberedSessionLifetime { get; set; } = TimeSpan.FromDays(30);
 
-    /// <summary>Concurrent refreshes (e.g. two mobile requests) within this window are not treated as theft.</summary>
-    public TimeSpan RefreshReuseGracePeriod { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan RememberedAbsoluteLifetime { get; set; } = TimeSpan.FromDays(90);
+
+    /// <summary>Sessions with no activity for this long end (API contract: about 30 minutes).</summary>
+    public TimeSpan IdleTimeout { get; set; } = TimeSpan.FromMinutes(30);
+
+    public TimeSpan RememberedIdleTimeout { get; set; } = TimeSpan.FromDays(14);
+
+    /// <summary>Concurrent refreshes (e.g. two tabs) within this window are not treated as token theft.</summary>
+    public TimeSpan RefreshReuseGracePeriod { get; set; } = TimeSpan.FromSeconds(20);
+
+    public TimeSpan SudoLifetime { get; set; } = TimeSpan.FromMinutes(5);
+    public TimeSpan MfaChallengeLifetime { get; set; } = TimeSpan.FromMinutes(5);
+    public TimeSpan PasswordResetLifetime { get; set; } = TimeSpan.FromMinutes(30);
+    public TimeSpan InvitationLifetime { get; set; } = TimeSpan.FromDays(7);
 
     public int MaxFailedAccessAttempts { get; set; } = 5;
-    public TimeSpan LockoutDuration { get; set; } = TimeSpan.FromMinutes(15);
+    public TimeSpan LockoutDuration { get; set; } = TimeSpan.FromMinutes(5);
 
-    /// <summary>Base URL of the admin/website app used in email links.</summary>
-    public string AppBaseUrl { get; set; } = "http://localhost:3000";
+    /// <summary>Reject passwords found in breach corpora (Have I Been Pwned range API, k-anonymity).</summary>
+    public bool CheckBreachedPasswords { get; set; } = true;
 
-    public string RefreshCookieName { get; set; } = "rt";
+    /// <summary>Base URL of the admin portal, used in email links (invitations, password resets).</summary>
+    public string AppBaseUrl { get; set; } = "http://localhost:3001";
+
+    /// <summary>Name shown in authenticator apps.</summary>
+    public string TotpIssuer { get; set; } = "Admin Portal";
 }

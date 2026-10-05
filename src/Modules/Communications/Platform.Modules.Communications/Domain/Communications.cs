@@ -32,7 +32,7 @@ public sealed class Announcement : TenantAggregateRoot
     public string? LinkUrl { get; private set; }
     public AnnouncementAudience Audience { get; private set; }
     public Guid? GroupId { get; private set; }
-    public Guid? BranchId { get; private set; }
+    public Guid? UnitId { get; private set; }
     public DateTimeOffset PublishAt { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
     public bool IsPinned { get; private set; }
@@ -40,7 +40,7 @@ public sealed class Announcement : TenantAggregateRoot
 
     public static Announcement Create(string title, string body) => new() { Title = title.Trim(), Body = body, Status = AnnouncementStatus.Draft };
 
-    public void Update(string title, string body, string? imageUrl, string? linkUrl, AnnouncementAudience audience, Guid? groupId, Guid? branchId,
+    public void Update(string title, string body, string? imageUrl, string? linkUrl, AnnouncementAudience audience, Guid? groupId, Guid? unitId,
         DateTimeOffset publishAt, DateTimeOffset? expiresAt, bool isPinned)
     {
         if (audience == AnnouncementAudience.Group && groupId is null)
@@ -59,7 +59,7 @@ public sealed class Announcement : TenantAggregateRoot
         LinkUrl = linkUrl;
         Audience = audience;
         GroupId = audience == AnnouncementAudience.Group ? groupId : null;
-        BranchId = branchId;
+        UnitId = unitId;
         PublishAt = publishAt;
         ExpiresAt = expiresAt;
         IsPinned = isPinned;
@@ -173,7 +173,7 @@ public sealed record AudienceSpec
 {
     public IReadOnlyList<string>? MembershipStatuses { get; init; }
     public IReadOnlyList<string>? Tags { get; init; }
-    public Guid? BranchId { get; init; }
+    public Guid? UnitId { get; init; }
     public Guid? GroupId { get; init; }
     public IReadOnlyList<Guid>? PersonIds { get; init; }
 }
@@ -343,7 +343,15 @@ public sealed class DeviceRegistration : TenantAggregateRoot
     }
 }
 
-/// <summary>In-app notification inbox item for a user.</summary>
+public enum NotificationTone
+{
+    Info,
+    Success,
+    Warning,
+    Danger,
+}
+
+/// <summary>In-app notification inbox item for a user (admin portal bell, website and app inbox).</summary>
 public sealed class Notification : TenantEntity
 {
     private Notification() { }
@@ -351,12 +359,16 @@ public sealed class Notification : TenantEntity
     public Guid UserId { get; private set; }
     public string Category { get; private set; } = null!;
     public string Title { get; private set; } = null!;
-    public string Body { get; private set; } = null!;
+    public string? Body { get; private set; }
+
+    /// <summary>In-app path to open, e.g. "/users/requests".</summary>
     public string? Link { get; private set; }
+
+    public NotificationTone Tone { get; private set; }
     public DateTimeOffset? ReadAt { get; private set; }
 
-    public static Notification Create(Guid userId, string category, string title, string body, string? link) =>
-        new() { UserId = userId, Category = category, Title = title, Body = body, Link = link };
+    public static Notification Create(Guid userId, string category, string title, string? body, string? link, NotificationTone tone = NotificationTone.Info) =>
+        new() { UserId = userId, Category = category, Title = title, Body = body, Link = link, Tone = tone };
 
     public void MarkRead(DateTimeOffset now) => ReadAt ??= now;
 }

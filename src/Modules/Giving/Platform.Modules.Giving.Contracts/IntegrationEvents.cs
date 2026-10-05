@@ -9,3 +9,8 @@ public sealed record DonationCompletedIntegrationEvent(
 
 public sealed record DonationRefundedIntegrationEvent(Guid TenantId, Guid DonationId, decimal Amount, string Currency, string Reason)
     : IntegrationEvent(TenantId);
+
+/// <summary>Published when a donation clears towards a campaign, updating real-time campaign totals.</summary>
+public sealed record DonationClearedIntegrationEvent(
+    Guid TenantId, Guid CampaignId, decimal Amount, string Currency, decimal TotalRaised, decimal GoalAmount)
+    : IntegrationEvent(TenantId);

@@ -116,7 +116,7 @@ internal sealed partial class BroadcastDispatcher(IServiceScopeFactory scopes, T
         }
 
         var contacts = await sp.GetRequiredService<IPeopleDirectory>().FindContactsAsync(
-            new AudienceFilter(spec.MembershipStatuses, spec.Tags, spec.BranchId, personIds, RequireConsent: true), ct);
+            new AudienceFilter(spec.MembershipStatuses, spec.Tags, spec.UnitId, personIds, RequireConsent: true), ct);
 
         var deliveries = contacts.Select(c => MessageDelivery.For(broadcast.Id, broadcast.Channel, c.PersonId, c.UserId, c.FullName, broadcast.Channel switch
         {

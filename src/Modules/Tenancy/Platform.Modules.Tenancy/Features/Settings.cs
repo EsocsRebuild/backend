@@ -41,7 +41,7 @@ public static class Settings
 
         group.MapGet("/", async (TenancyDbContext db, CancellationToken ct) =>
                 TypedResults.Ok((await db.Settings.AsNoTracking().OrderBy(s => s.Key).ToListAsync(ct)).Select(ToResponse)))
-            .RequirePermission(Permissions.Tenant.Read)
+            .RequirePermission(Permissions.Dashboard.View)
             .WithSummary("List all settings");
 
         group.MapPut("/{key}", async (string key, SaveSettingRequest request, TenancyDbContext db, CancellationToken ct) =>
@@ -67,7 +67,7 @@ public static class Settings
                 return Results.Ok(ToResponse(setting));
             })
             .WithValidation<SaveSettingRequest>()
-            .RequirePermission(Permissions.Tenant.SettingsManage)
+            .RequirePermission(Permissions.Settings.Manage)
             .WithSummary("Create or replace a setting");
 
         group.MapDelete("/{key}", async (string key, TenancyDbContext db, CancellationToken ct) =>
@@ -75,7 +75,7 @@ public static class Settings
                 await db.Settings.Where(s => s.Key == key).ExecuteDeleteAsync(ct);
                 return TypedResults.NoContent();
             })
-            .RequirePermission(Permissions.Tenant.SettingsManage)
+            .RequirePermission(Permissions.Settings.Manage)
             .WithSummary("Delete a setting");
     }
 }

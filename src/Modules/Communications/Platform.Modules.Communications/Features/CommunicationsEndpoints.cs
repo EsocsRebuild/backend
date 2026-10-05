@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Platform.Application.Pagination;
 using Platform.Application.Security;
+using Platform.Application.Tenancy;
 using Platform.Modules.Communications.Domain;
 using Platform.Modules.Communications.Infrastructure;
 using Platform.Modules.Groups.Contracts;
@@ -17,12 +18,14 @@ using Platform.Web.Security;
 namespace Platform.Modules.Communications.Features;
 
 public sealed record SaveAnnouncementRequest(string Title, string Body, string? ImageUrl, string? LinkUrl, AnnouncementAudience Audience,
-    Guid? GroupId, Guid? BranchId, DateTimeOffset? PublishAt, DateTimeOffset? ExpiresAt, bool IsPinned);
+    Guid? GroupId, Guid? UnitId, DateTimeOffset? PublishAt, DateTimeOffset? ExpiresAt, bool IsPinned);
 
 public sealed record AnnouncementResponse(Guid Id, string Title, string Body, string? ImageUrl, string? LinkUrl, string Audience, Guid? GroupId,
-    Guid? BranchId, DateTimeOffset PublishAt, DateTimeOffset? ExpiresAt, bool IsPinned, string Status);
+    Guid? UnitId, DateTimeOffset PublishAt, DateTimeOffset? ExpiresAt, bool IsPinned, string Status);
 
 public sealed record SubmitPrayerRequest(string Name, string? Email, string? PhoneNumber, string Request, bool IsAnonymous, bool ShareOnPrayerWall);
+
+public sealed record NewsletterSubscribeRequest(string Email, string? Name);
 
 public sealed record ManagePrayerRequest(PrayerStatus Status, Guid? AssignedToUserId, bool ApprovedForWall, string? AnswerNote);
 
@@ -58,10 +61,10 @@ internal sealed class SubmitPrayerValidator : AbstractValidator<SubmitPrayerRequ
 {
     public SubmitPrayerValidator()
     {
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Email).EmailAddress().MaximumLength(256);
+        RuleFor(x => x.Name).MaximumLength(200);
+        RuleFor(x => x.Email).EmailAddress().MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.Email));
         RuleFor(x => x.PhoneNumber).MaximumLength(32);
-        RuleFor(x => x.Request).NotEmpty().MaximumLength(4000);
+        RuleFor(x => x.Request).NotEmpty().WithMessage("Please write your prayer request.").MaximumLength(4000);
     }
 }
 
@@ -95,58 +98,61 @@ public static class CommunicationsEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var ann = endpoints.MapModuleGroup("announcements", "Communications");
-        ann.MapGet("/", ListAnnouncements).RequirePermission(Permissions.Communications.Read).WithSummary("List announcements");
+        ann.MapGet("/", ListAnnouncements).RequirePermission(Permissions.Content.View).WithSummary("List announcements");
         ann.MapPost("/", (SaveAnnouncementRequest r, CommunicationsDbContext db, TimeProvider clock, CancellationToken ct) => SaveAnnouncement(null, r, db, clock, ct))
-            .WithValidation<SaveAnnouncementRequest>().RequirePermission(Permissions.Communications.AnnouncementsManage).WithSummary("Create an announcement (draft)");
+            .WithValidation<SaveAnnouncementRequest>().RequirePermission(Permissions.Content.Manage).WithSummary("Create an announcement (draft)");
         ann.MapPut("/{id:guid}", (Guid id, SaveAnnouncementRequest r, CommunicationsDbContext db, TimeProvider clock, CancellationToken ct) => SaveAnnouncement(id, r, db, clock, ct))
-            .WithValidation<SaveAnnouncementRequest>().RequirePermission(Permissions.Communications.AnnouncementsManage).WithSummary("Update an announcement");
+            .WithValidation<SaveAnnouncementRequest>().RequirePermission(Permissions.Content.Manage).WithSummary("Update an announcement");
         ann.MapPost("/{id:guid}/publish", (Guid id, CommunicationsDbContext db, CancellationToken ct) => AnnouncementAction(id, db, a => a.Publish(), ct))
-            .RequirePermission(Permissions.Communications.AnnouncementsManage).WithSummary("Publish");
+            .RequirePermission(Permissions.Content.Manage).WithSummary("Publish");
         ann.MapPost("/{id:guid}/archive", (Guid id, CommunicationsDbContext db, CancellationToken ct) => AnnouncementAction(id, db, a => a.Archive(), ct))
-            .RequirePermission(Permissions.Communications.AnnouncementsManage).WithSummary("Archive");
+            .RequirePermission(Permissions.Content.Manage).WithSummary("Archive");
 
         var prayer = endpoints.MapModuleGroup("prayer-requests", "Prayer ministry");
-        prayer.MapGet("/", ListPrayer).RequirePermission(Permissions.Communications.PrayerRequestsRead).WithSummary("Prayer requests (confidential)");
-        prayer.MapPut("/{id:guid}", ManagePrayer).RequirePermission(Permissions.Communications.PrayerRequestsManage).WithSummary("Update status, assignee, prayer-wall approval");
+        prayer.MapGet("/", ListPrayer).RequirePermission(Permissions.Prayer.View).WithSummary("Prayer requests (confidential)");
+        prayer.MapPut("/{id:guid}", ManagePrayer).RequirePermission(Permissions.Prayer.Manage).WithSummary("Update status, assignee, prayer-wall approval");
 
         var templates = endpoints.MapModuleGroup("message-templates", "Communications");
         templates.MapGet("/", async (CommunicationsDbContext db, CancellationToken ct) => Results.Ok(await db.Templates.AsNoTracking().OrderBy(t => t.Name)
                 .Select(t => new { t.Id, t.Name, Channel = t.Channel.ToString(), t.Subject, t.Body }).ToListAsync(ct)))
-            .RequirePermission(Permissions.Communications.Read).WithSummary("List templates");
-        templates.MapPost("/", SaveTemplate).WithValidation<SaveTemplateRequest>().RequirePermission(Permissions.Communications.TemplatesManage).WithSummary("Create a template");
+            .RequirePermission(Permissions.Content.View).WithSummary("List templates");
+        templates.MapPost("/", SaveTemplate).WithValidation<SaveTemplateRequest>().RequirePermission(Permissions.Templates.Manage).WithSummary("Create a template");
 
         var broadcasts = endpoints.MapModuleGroup("broadcasts", "Communications");
-        broadcasts.MapGet("/", ListBroadcasts).RequirePermission(Permissions.Communications.Read).WithSummary("Email / SMS / push broadcasts");
+        broadcasts.MapGet("/", ListBroadcasts).RequirePermission(Permissions.Content.View).WithSummary("Email / SMS / push broadcasts");
         broadcasts.MapPost("/", (SaveBroadcastRequest r, CommunicationsDbContext db, CancellationToken ct) => SaveBroadcast(null, r, db, ct))
-            .WithValidation<SaveBroadcastRequest>().RequirePermission(Permissions.Communications.Send).WithSummary("Create a draft broadcast");
+            .WithValidation<SaveBroadcastRequest>().RequirePermission(Permissions.Campaigns.Send).WithSummary("Create a draft broadcast");
         broadcasts.MapPut("/{id:guid}", (Guid id, SaveBroadcastRequest r, CommunicationsDbContext db, CancellationToken ct) => SaveBroadcast(id, r, db, ct))
-            .WithValidation<SaveBroadcastRequest>().RequirePermission(Permissions.Communications.Send).WithSummary("Edit a draft broadcast");
-        broadcasts.MapGet("/{id:guid}/audience-preview", PreviewAudience).RequirePermission(Permissions.Communications.Send).WithSummary("Count reachable recipients before sending");
-        broadcasts.MapPost("/{id:guid}/send", SendBroadcast).RequirePermission(Permissions.Communications.Send).WithSummary("Send now or schedule");
+            .WithValidation<SaveBroadcastRequest>().RequirePermission(Permissions.Campaigns.Send).WithSummary("Edit a draft broadcast");
+        broadcasts.MapGet("/{id:guid}/audience-preview", PreviewAudience).RequirePermission(Permissions.Campaigns.Send).WithSummary("Count reachable recipients before sending");
+        broadcasts.MapPost("/{id:guid}/send", SendBroadcast).RequirePermission(Permissions.Campaigns.Send).WithSummary("Send now or schedule");
         broadcasts.MapPost("/{id:guid}/cancel", (Guid id, CommunicationsDbContext db, CancellationToken ct) => BroadcastAction(id, db, b => b.Cancel(), ct))
-            .RequirePermission(Permissions.Communications.Send).WithSummary("Cancel a scheduled broadcast");
-        broadcasts.MapGet("/{id:guid}/deliveries", ListDeliveries).RequirePermission(Permissions.Communications.Read).WithSummary("Per-recipient delivery status");
+            .RequirePermission(Permissions.Campaigns.Send).WithSummary("Cancel a scheduled broadcast");
+        broadcasts.MapGet("/{id:guid}/deliveries", ListDeliveries).RequirePermission(Permissions.Content.View).WithSummary("Per-recipient delivery status");
 
         var pub = endpoints.MapPublicGroup("", "Public");
         pub.MapGet("/announcements", PublicAnnouncements).WithSummary("Current public announcements");
         pub.MapPost("/prayer-requests", SubmitPrayer).WithValidation<SubmitPrayerRequest>().WithSummary("Submit a prayer request");
         pub.MapGet("/prayer-wall", PrayerWall).WithSummary("Approved public prayer requests");
         pub.MapPost("/prayer-wall/{id:guid}/pray", PrayFor).WithSummary("\"I prayed\" counter");
+        pub.MapPost("/newsletter", SubscribeNewsletter).WithSummary("Public newsletter subscription");
 
-        var me = endpoints.MapGroup($"{EndpointExtensions.ApiPrefix}/me").WithTags("My account").RequireAuthorization();
+        var me = endpoints.MapGroup("me").WithTags("My account").RequireAuthorization();
         me.MapGet("/announcements", MyAnnouncements).WithSummary("Announcements for me (public, members and my groups)");
         me.MapGet("/prayer-requests", MyPrayerRequests).WithSummary("My prayer requests");
         me.MapPost("/devices", RegisterDevice).WithSummary("Register a push notification token");
         me.MapDelete("/devices/{token}", UnregisterDevice).WithSummary("Unregister a push token (on sign-out)");
-        me.MapGet("/notifications", MyNotifications).WithSummary("My in-app notifications");
-        me.MapPost("/notifications/{id:guid}/read", MarkRead).WithSummary("Mark a notification read");
-        me.MapPost("/notifications/read-all", MarkAllRead).WithSummary("Mark all notifications read");
+
+        var notifications = endpoints.MapGroup("notifications").WithTags("Notifications").RequireAuthorization();
+        notifications.MapGet("/", MyNotifications).WithSummary("My notifications (newest first) with the unread count");
+        notifications.MapPost("/{id:guid}/read", MarkRead).WithSummary("Mark one notification read");
+        notifications.MapPost("/read-all", MarkAllRead).WithSummary("Mark all my notifications read");
     }
 
     // ---- Announcements ---------------------------------------------------------------------
 
     private static AnnouncementResponse ToResponse(Announcement a) => new(a.Id, a.Title, a.Body, a.ImageUrl, a.LinkUrl, a.Audience.ToString(),
-        a.GroupId, a.BranchId, a.PublishAt, a.ExpiresAt, a.IsPinned, a.Status.ToString());
+        a.GroupId, a.UnitId, a.PublishAt, a.ExpiresAt, a.IsPinned, a.Status.ToString());
 
     private static async Task<IResult> ListAnnouncements([AsParameters] PageRequest page, AnnouncementStatus? status, CommunicationsDbContext db, CancellationToken ct)
     {
@@ -162,7 +168,7 @@ public static class CommunicationsEndpoints
         var item = id is null ? Announcement.Create(r.Title, r.Body) : await db.Announcements.FirstOrDefaultAsync(a => a.Id == id, ct);
         if (item is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         if (id is null)
@@ -170,7 +176,7 @@ public static class CommunicationsEndpoints
             db.Announcements.Add(item);
         }
 
-        item.Update(r.Title, r.Body, r.ImageUrl, r.LinkUrl, r.Audience, r.GroupId, r.BranchId, r.PublishAt ?? clock.GetUtcNow(), r.ExpiresAt, r.IsPinned);
+        item.Update(r.Title, r.Body, r.ImageUrl, r.LinkUrl, r.Audience, r.GroupId, r.UnitId, r.PublishAt ?? clock.GetUtcNow(), r.ExpiresAt, r.IsPinned);
         await db.SaveChangesAsync(ct);
         return id is null ? Results.Created($"/api/v1/announcements/{item.Id}", ToResponse(item)) : Results.Ok(ToResponse(item));
     }
@@ -180,7 +186,7 @@ public static class CommunicationsEndpoints
         var item = await db.Announcements.FirstOrDefaultAsync(a => a.Id == id, ct);
         if (item is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         action(item);
@@ -217,10 +223,15 @@ public static class CommunicationsEndpoints
     private static PrayerResponse ToResponse(PrayerRequest p) => new(p.Id, p.Name, p.Email, p.PhoneNumber, p.Request, p.IsAnonymous, p.ShareOnPrayerWall,
         p.ApprovedForWall, p.Status.ToString(), p.AssignedToUserId, p.PrayedCount, p.AnswerNote, p.CreatedAt);
 
-    private static async Task<IResult> SubmitPrayer(SubmitPrayerRequest r, ICurrentUser user, IPeopleDirectory people, CommunicationsDbContext db, CancellationToken ct)
+    private static async Task<IResult> SubmitPrayer(SubmitPrayerRequest r, ICurrentUser user, IPeopleDirectory people, ITenantContext tenant, CommunicationsDbContext db, CancellationToken ct)
     {
         Guid? personId = user.UserId is { } uid ? await people.FindPersonIdByUserAsync(uid, ct) : null;
-        var request = PrayerRequest.Submit(personId, user.UserId, r.Name, r.Email, r.PhoneNumber, r.Request, r.IsAnonymous, r.ShareOnPrayerWall);
+        var name = string.IsNullOrWhiteSpace(r.Name) ? "Anonymous" : r.Name.Trim();
+        var request = PrayerRequest.Submit(personId, user.UserId, name, r.Email, r.PhoneNumber, r.Request, r.IsAnonymous, r.ShareOnPrayerWall);
+        if (tenant.TenantId is { } tid)
+        {
+            request.AssignTenant(tid);
+        }
         db.PrayerRequests.Add(request);
         await db.SaveChangesAsync(ct);
         return Results.Created($"/api/v1/me/prayer-requests/{request.Id}", new { request.Id, Status = request.Status.ToString() });
@@ -242,7 +253,7 @@ public static class CommunicationsEndpoints
         var request = await db.PrayerRequests.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (request is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         request.Manage(r.Status, r.AssignedToUserId, r.ApprovedForWall, r.AnswerNote);
@@ -263,7 +274,41 @@ public static class CommunicationsEndpoints
     {
         var updated = await db.PrayerRequests.Where(p => p.Id == id && p.ApprovedForWall)
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.PrayedCount, p => p.PrayedCount + 1), ct);
-        return updated == 0 ? NotFound.ToProblem() : Results.NoContent();
+        return updated == 0 ? NotFound.ToError() : Results.NoContent();
+    }
+
+    private static async Task<IResult> SubscribeNewsletter(NewsletterSubscribeRequest r, ITenantContext tenant, CommunicationsDbContext db, CancellationToken ct)
+    {
+        var email = r.Email?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+        {
+            return Error.Validation("newsletter.invalid_email", "Please enter a valid email address.").ToError();
+        }
+
+        var audience = await db.Audiences.FirstOrDefaultAsync(a => a.Name == "Church newsletter", ct)
+            ?? await db.Audiences.FirstOrDefaultAsync(ct);
+
+        if (audience is null)
+        {
+            audience = AudienceList.Create("Church newsletter", "General church newsletter subscribers", false);
+            if (tenant.TenantId is { } tid) audience.AssignTenant(tid);
+            db.Audiences.Add(audience);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var existing = await db.Contacts.FirstOrDefaultAsync(c => c.ListId == audience.Id && c.Email == email, ct);
+        if (existing is null)
+        {
+            var parts = (r.Name ?? "").Trim().Split(' ', 2);
+            var first = parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]) ? parts[0] : null;
+            var last = parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]) ? parts[1] : null;
+            var contact = AudienceContact.Create(audience.Id, email, first, last, "subscribed", "website", null, DateTimeOffset.UtcNow);
+            if (tenant.TenantId is { } tid) contact.AssignTenant(tid);
+            db.Contacts.Add(contact);
+            await db.SaveChangesAsync(ct);
+        }
+
+        return Results.Ok(new { message = "Subscribed successfully" });
     }
 
     private static async Task<IResult> MyPrayerRequests(ICurrentUser user, CommunicationsDbContext db, CancellationToken ct) =>
@@ -305,7 +350,7 @@ public static class CommunicationsEndpoints
             broadcast = await db.Broadcasts.FirstOrDefaultAsync(b => b.Id == id, ct);
             if (broadcast is null)
             {
-                return NotFound.ToProblem();
+                return NotFound.ToError();
             }
 
             broadcast.Update(r.Channel, r.Subject, r.Body, audience);
@@ -320,7 +365,7 @@ public static class CommunicationsEndpoints
         var broadcast = await db.Broadcasts.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id, ct);
         if (broadcast is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         var spec = JsonSerializer.Deserialize<AudienceSpec>(broadcast.Audience, JsonSerializerOptions.Web) ?? new AudienceSpec();
@@ -335,7 +380,7 @@ public static class CommunicationsEndpoints
             }
         }
 
-        var contacts = await people.FindContactsAsync(new AudienceFilter(spec.MembershipStatuses, spec.Tags, spec.BranchId, personIds), ct);
+        var contacts = await people.FindContactsAsync(new AudienceFilter(spec.MembershipStatuses, spec.Tags, spec.UnitId, personIds), ct);
         var reachable = broadcast.Channel switch
         {
             Channel.Email => contacts.Count(c => !string.IsNullOrWhiteSpace(c.Email)),
@@ -353,7 +398,7 @@ public static class CommunicationsEndpoints
         var broadcast = await db.Broadcasts.FirstOrDefaultAsync(b => b.Id == id, ct);
         if (broadcast is null)
         {
-            return NotFound.ToProblem();
+            return NotFound.ToError();
         }
 
         action(broadcast);
@@ -378,7 +423,7 @@ public static class CommunicationsEndpoints
     {
         if (string.IsNullOrWhiteSpace(r.Token) || r.Token.Length > 512)
         {
-            return Error.Validation("device.invalid_token", "A valid push token is required.").ToProblem();
+            return Error.Validation("device.invalid_token", "A valid push token is required.").ToError();
         }
 
         var now = clock.GetUtcNow();
@@ -402,14 +447,15 @@ public static class CommunicationsEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> MyNotifications([AsParameters] PageRequest page, bool? unreadOnly, ICurrentUser user, CommunicationsDbContext db, CancellationToken ct)
+    private static async Task<IResult> MyNotifications(int? limit, bool? unreadOnly, ICurrentUser user, CommunicationsDbContext db, CancellationToken ct)
     {
         var query = db.Notifications.AsNoTracking().Where(n => n.UserId == user.UserId);
         var unread = await query.CountAsync(n => n.ReadAt == null, ct);
         if (unreadOnly == true) query = query.Where(n => n.ReadAt == null);
-        var items = await query.OrderByDescending(n => n.CreatedAt).Skip(page.Skip).Take(page.SafePageSize)
-            .Select(n => new { n.Id, n.Category, n.Title, n.Body, n.Link, n.ReadAt, n.CreatedAt }).ToListAsync(ct);
-        return Results.Ok(new { unreadCount = unread, items });
+        var items = await query.OrderByDescending(n => n.CreatedAt).Take(Math.Clamp(limit ?? 15, 1, 100))
+            .Select(n => new { n.Id, n.Title, n.Body, href = n.Link, tone = n.Tone.ToString().ToLower(), read = n.ReadAt != null, n.CreatedAt })
+            .ToListAsync(ct);
+        return Results.Ok(new WithMeta(items, new { unread }));
     }
 
     private static async Task<IResult> MarkRead(Guid id, ICurrentUser user, CommunicationsDbContext db, TimeProvider clock, CancellationToken ct)

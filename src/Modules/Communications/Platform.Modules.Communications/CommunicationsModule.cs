@@ -22,9 +22,18 @@ public sealed class CommunicationsModule : IModule
         // Development senders; register real providers (Twilio/Termii, Firebase) before this module to override.
         services.TryAddScoped<ISmsSender, LoggingSmsSender>();
         services.TryAddScoped<IPushSender, LoggingPushSender>();
+        services.AddScoped<Platform.Application.Abstractions.IDashboardContributor, CommunicationsDashboardContributor>();
         services.AddHostedService<BroadcastDispatcher>();
         services.AddHandlersAndValidators(typeof(CommunicationsModule).Assembly);
     }
 
-    public void MapEndpoints(IEndpointRouteBuilder endpoints) => CommunicationsEndpoints.Map(endpoints);
+    public void MapEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        CommunicationsEndpoints.Map(endpoints);
+        AudienceEndpoints.Map(endpoints);
+        TemplateEndpoints.Map(endpoints);
+        CampaignEndpoints.Map(endpoints);
+        SendingSettingsEndpoints.Map(endpoints);
+        FormEndpoints.Map(endpoints);
+    }
 }

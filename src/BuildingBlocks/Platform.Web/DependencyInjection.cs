@@ -24,12 +24,9 @@ public static class DependencyInjection
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
         services.AddScoped<IRequestInfo, HttpRequestInfo>();
         services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+        services.AddScoped<ICurrentAccess, CurrentAccess>();
 
-        services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>
-        {
-            ctx.ProblemDetails.Instance = $"{ctx.HttpContext.Request.Method} {ctx.HttpContext.Request.Path}";
-            ctx.ProblemDetails.Extensions["traceId"] = ctx.HttpContext.TraceIdentifier;
-        });
+        services.AddProblemDetails();
         services.AddExceptionHandler<GlobalExceptionHandler>();
         return services;
     }

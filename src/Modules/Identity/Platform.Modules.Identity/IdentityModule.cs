@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Platform.Application;
 using Platform.Application.Security;
+using Platform.Infrastructure.Auditing;
 using Platform.Infrastructure.Modules;
 using Platform.Infrastructure.Persistence;
 using Platform.Modules.Identity.Domain;
@@ -31,13 +32,26 @@ public sealed class IdentityModule : IModule
             .ValidateOnStart();
 
         services.AddDataProtection();
-        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+        services.AddSingleton<Argon2PasswordHasher>();
+        services.AddSingleton<IPasswordHasher<User>>(sp => sp.GetRequiredService<Argon2PasswordHasher>());
+        services.AddHttpClient(nameof(PasswordPolicy), c =>
+        {
+            c.DefaultRequestHeaders.Add("Add-Padding", "true");
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("platform-api-password-check");
+        });
+        services.AddScoped<PasswordPolicy>();
         services.AddScoped<TokenService>();
-        services.AddScoped<SignInService>();
+        services.AddScoped<CredentialService>();
+        services.AddScoped<SessionService>();
+        services.AddScoped<SessionValidator>();
         services.AddScoped<TotpService>();
         services.AddScoped<UserTokenService>();
+        services.AddScoped<OneTimeCodeService>();
         services.AddScoped<IPermissionService, PermissionService>();
+        services.AddScoped<ISudoVerifier, SudoVerifier>();
+        services.AddScoped<IAuditEventStore, AuditEventStore>();
         services.AddScoped<TenantProvisioning>();
+        services.AddScoped<Platform.Modules.Identity.Contracts.IUserDirectory, UserDirectory>();
         services.AddHandlersAndValidators(typeof(IdentityModule).Assembly);
 
         var auth = configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>()
@@ -53,6 +67,31 @@ public sealed class IdentityModule : IModule
             {
                 o.MapInboundClaims = false;
                 o.TokenValidationParameters = TokenService.ValidationParameters(auth);
+                o.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        var path = context.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/platform"))
+                        {
+                            context.Token = accessToken;
+                        }
+                        return Task.CompletedTask;
+                    },
+
+                    // The session behind the token must still be live: revocation, suspension, password resets
+                    // and the idle timeout take effect on the very next request, not when the token expires.
+                    OnTokenValidated = async context =>
+                    {
+                        var sid = context.Principal?.FindFirst(PlatformClaims.SessionId)?.Value;
+                        if (!Guid.TryParse(sid, out var sessionId) ||
+                            !await context.HttpContext.RequestServices.GetRequiredService<SessionValidator>().ValidateAsync(sessionId, context.HttpContext.RequestAborted))
+                        {
+                            context.Fail("Session ended.");
+                        }
+                    },
+                };
             })
             .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
 
@@ -63,7 +102,10 @@ public sealed class IdentityModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         AuthEndpoints.Map(endpoints);
-        MeEndpoints.Map(endpoints);
-        AccessManagementEndpoints.Map(endpoints);
+        AccountEndpoints.Map(endpoints);
+        AdministrationEndpoints.Map(endpoints);
+        AuditEndpoints.Map(endpoints);
+        ApiKeyEndpoints.Map(endpoints);
+        SwitchTenantEndpoints.Map(endpoints);
     }
 }

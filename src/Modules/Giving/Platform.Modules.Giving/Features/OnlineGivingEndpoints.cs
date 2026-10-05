@@ -50,7 +50,7 @@ public static partial class OnlineGivingEndpoints
         pub.MapPost("/checkout", Checkout).WithValidation<CheckoutRequestDto>().WithSummary("Start an online gift; redirect the giver to checkoutUrl");
         pub.MapPost("/webhooks/{provider}", Webhook).WithSummary("Payment provider webhook (signature verified)").ExcludeFromDescription();
 
-        var me = endpoints.MapGroup($"{EndpointExtensions.ApiPrefix}/me/giving").WithTags("My account").RequireAuthorization();
+        var me = endpoints.MapGroup("me/giving").WithTags("My account").RequireAuthorization();
         me.MapGet("/", MyGiving).WithSummary("My giving history and annual statement");
     }
 
@@ -60,7 +60,7 @@ public static partial class OnlineGivingEndpoints
     {
         if (tenant.TenantId is null)
         {
-            return Error.Validation("tenant.required", "Send the X-Tenant header.").ToProblem();
+            return Error.Validation("tenant.required", "Send the X-Tenant header.").ToError();
         }
 
         Guid? personId = user.UserId is { } userId ? await people.FindPersonIdByUserAsync(userId, ct) : null;
@@ -70,13 +70,13 @@ public static partial class OnlineGivingEndpoints
         var publicFunds = r.Allocations.Select(a => a.FundId).ToList();
         if (await db.Funds.CountAsync(f => publicFunds.Contains(f.Id) && f.IsPublic && f.IsActive, ct) != publicFunds.Distinct().Count())
         {
-            return Error.Validation("donation.invalid_fund", "One or more funds are not available for online giving.").ToProblem();
+            return Error.Validation("donation.invalid_fund", "One or more funds are not available for online giving.").ToError();
         }
 
         var recorded = await recorder.RecordAsync(request, DonationStatus.Pending, ct);
         if (recorded.IsFailure)
         {
-            return recorded.Error.ToProblem();
+            return recorded.Error.ToError();
         }
 
         var donation = recorded.Value;
@@ -148,7 +148,7 @@ public static partial class OnlineGivingEndpoints
     {
         if (await people.FindPersonIdByUserAsync(user.RequiredUserId, ct) is not { } personId)
         {
-            return Error.NotFound("person.no_profile", "No member profile is linked to your account yet.").ToProblem();
+            return Error.NotFound("person.no_profile", "No member profile is linked to your account yet.").ToError();
         }
 
         return Results.Ok(await GivingManagementEndpoints.BuildStatementAsync(db, personId, null, year ?? clock.GetUtcNow().Year, ct));

@@ -57,7 +57,7 @@ public sealed class Group : TenantAggregateRoot
     public GroupType Type { get; private set; }
     public GroupVisibility Visibility { get; private set; }
     public Guid? ParentGroupId { get; private set; }
-    public Guid? BranchId { get; private set; }
+    public Guid? UnitId { get; private set; }
     public string? Description { get; private set; }
     public string? ImageUrl { get; private set; }
 
@@ -75,7 +75,7 @@ public sealed class Group : TenantAggregateRoot
         new() { Name = name.Trim(), Slug = slug, Type = type, Visibility = GroupVisibility.Members };
 
     public void Update(
-        string name, string slug, GroupType type, GroupVisibility visibility, Guid? parentGroupId, Guid? branchId, string? description,
+        string name, string slug, GroupType type, GroupVisibility visibility, Guid? parentGroupId, Guid? unitId, string? description,
         string? imageUrl, string? meetingSchedule, string? meetingLocation, int? capacity, bool isActive, bool acceptsJoinRequests)
     {
         if (parentGroupId == Id)
@@ -88,7 +88,7 @@ public sealed class Group : TenantAggregateRoot
         Type = type;
         Visibility = visibility;
         ParentGroupId = parentGroupId;
-        BranchId = branchId;
+        UnitId = unitId;
         Description = description;
         ImageUrl = imageUrl;
         MeetingSchedule = meetingSchedule;

@@ -12,6 +12,6 @@ internal sealed class PersonFactory(PeopleDbContext db, ITenantContext tenant, T
     {
         var tenantId = tenant.RequiredTenantId;
         var number = await db.NextNumberAsync(tenantId, "member", ct);
-        return Person.Create(tenantId, $"M-{number:D6}", firstName, lastName, status, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime));
+        return Person.Create(tenantId, $"MBR-{number:D6}", firstName, lastName, status, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime));
     }
 }

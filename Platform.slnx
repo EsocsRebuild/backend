@@ -11,6 +11,7 @@
   </Folder>
   <Folder Name="/src/Modules/" />
   <Folder Name="/src/Modules/Communications/">
+    <Project Path="src/Modules/Communications/Platform.Modules.Communications.Contracts/Platform.Modules.Communications.Contracts.csproj" />
     <Project Path="src/Modules/Communications/Platform.Modules.Communications/Platform.Modules.Communications.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Content/">
