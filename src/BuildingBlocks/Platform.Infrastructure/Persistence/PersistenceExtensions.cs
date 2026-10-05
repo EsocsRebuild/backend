@@ -29,7 +29,6 @@ public static class PersistenceExtensions
         });
 
         services.AddSingleton<IModuleDatabase>(new ModuleDatabase(typeof(TContext)));
-        services.AddHostedService<OutboxProcessor<TContext>>();
         return services;
     }
 

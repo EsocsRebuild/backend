@@ -38,7 +38,8 @@ public sealed record ResetPasswordRequest(string Token, string Password);
 public sealed record AcceptInvitationRequest(string Name, string Password);
 
 public sealed record SessionUserResponse(
-    Guid Id, string Name, string Email, string? AvatarUrl, RoleRef Role, IReadOnlyList<string> Permissions, bool MfaEnabled, Guid? ParishId);
+    Guid Id, string Name, string Email, string? AvatarUrl, RoleRef Role, IReadOnlyList<string> Permissions, bool MfaEnabled, Guid? ParishId,
+    Guid? ScopeUnitId = null, bool IsPlatformAdmin = false);
 
 public sealed record RoleRef(Guid Id, string Name);
 
@@ -301,7 +302,8 @@ public static class AuthEndpoints
         return Results.Ok(new SessionUserResponse(
             profile.MembershipId, user.Name, user.Email, user.AvatarUrl,
             new RoleRef(role?.Id ?? Guid.Empty, role?.Name ?? "No role"),
-            Permissions.Ordered.Where(profile.Permissions.Contains).ToList(), user.TwoFactorEnabled, profile.ScopeUnitId));
+            Permissions.Ordered.Where(profile.Permissions.Contains).ToList(), user.TwoFactorEnabled,
+            profile.ScopeUnitId, profile.ScopeUnitId, user.IsPlatformAdmin));
     }
 
     private static async Task<IResult> Touch(ICurrentUser currentUser, IdentityDbContext db, TimeProvider clock, CancellationToken ct)

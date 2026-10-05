@@ -7,6 +7,7 @@ using Platform.Application.Pagination;
 using Platform.Application.Security;
 using Platform.Modules.Events.Domain;
 using Platform.Modules.Events.Infrastructure;
+using Platform.Modules.Tenancy.Contracts;
 using Platform.SharedKernel.Domain;
 using Platform.SharedKernel.Results;
 using Platform.Web.Endpoints;
@@ -93,7 +94,41 @@ public static class EventEndpoints
         r.OnlineUrl, r.StartsAt.ToUniversalTime(), r.EndsAt.ToUniversalTime(), r.TimeZone, r.AllDay, r.RecurrenceRule, r.RegistrationEnabled,
         r.Capacity, r.RegistrationClosesAt, r.MaxGuestsPerRegistration);
 
-    private static async Task<IResult> List([AsParameters] EventQuery q, EventsDbContext db, TimeProvider clock, ICurrentAccess currentAccess, CancellationToken ct)
+    private static async Task<Event?> FindScopedAsync(
+        Guid id,
+        EventsDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        bool tracking,
+        CancellationToken ct)
+    {
+        var query = tracking ? db.Events.Include(e => e.Occurrences).AsQueryable() : db.Events.AsNoTracking().Include(e => e.Occurrences).AsQueryable();
+        var entity = await query.FirstOrDefaultAsync(e => e.Id == id, ct);
+        if (entity is null)
+        {
+            return null;
+        }
+
+        var access = await currentAccess.GetAsync(ct);
+        if (access?.ScopeUnitId is { } scopeUnit && entity.UnitId is { } eventUnit)
+        {
+            var allowed = await units.GetSubtreeIdsAsync(scopeUnit, ct);
+            if (!allowed.Contains(eventUnit))
+            {
+                return null;
+            }
+        }
+
+        return entity;
+    }
+
+    private static async Task<IResult> List(
+        [AsParameters] EventQuery q,
+        EventsDbContext db,
+        TimeProvider clock,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
         var page = new PageRequest(q.Page, q.PageSize);
         var query = db.Events.AsNoTracking();
@@ -102,10 +137,25 @@ public static class EventEndpoints
         if (q.Status is { } status) query = query.Where(e => e.Status == status);
 
         var access = await currentAccess.GetAsync(ct);
-        var effectiveUnitId = access?.ScopeUnitId ?? q.UnitId;
-        if (effectiveUnitId is { } unitId)
+        if (access?.ScopeUnitId is { } scopeUnit)
         {
-            query = query.Where(e => e.UnitId == unitId || e.UnitId == null);
+            var allowed = await units.GetSubtreeIdsAsync(scopeUnit, ct);
+            if (q.UnitId is { } req)
+            {
+                if (!allowed.Contains(req))
+                {
+                    return Results.Ok(new PagedResult<EventResponse>([], page.SafePage, page.SafePageSize, 0));
+                }
+                query = query.Where(e => e.UnitId == req);
+            }
+            else
+            {
+                query = query.Where(e => e.UnitId == null || allowed.Contains(e.UnitId.Value));
+            }
+        }
+        else if (q.UnitId is { } uid)
+        {
+            query = query.Where(e => e.UnitId == uid);
         }
 
         if (q.Upcoming)
@@ -119,7 +169,12 @@ public static class EventEndpoints
         return Results.Ok(new PagedResult<EventResponse>(items.Select(e => e.ToResponse()).ToList(), page.SafePage, page.SafePageSize, total));
     }
 
-    private static async Task<IResult> Calendar([AsParameters] CalendarQuery q, EventsDbContext db, ICurrentAccess currentAccess, CancellationToken ct)
+    private static async Task<IResult> Calendar(
+        [AsParameters] CalendarQuery q,
+        EventsDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
         if (q.To <= q.From || q.To - q.From > TimeSpan.FromDays(92))
         {
@@ -127,13 +182,37 @@ public static class EventEndpoints
         }
 
         var access = await currentAccess.GetAsync(ct);
-        var effectiveUnitId = access?.ScopeUnitId ?? q.UnitId;
+        IReadOnlyList<Guid>? allowed = null;
+        if (access?.ScopeUnitId is { } scopeUnit)
+        {
+            allowed = await units.GetSubtreeIdsAsync(scopeUnit, ct);
+            if (q.UnitId is { } req && !allowed.Contains(req))
+            {
+                return Results.Ok(Array.Empty<OccurrenceResponse>());
+            }
+        }
 
         var query = from o in db.Occurrences.AsNoTracking()
                     join e in db.Events.AsNoTracking() on o.EventId equals e.Id
                     where o.StartsAt < q.To && o.EndsAt > q.From && e.Status != EventStatus.Draft
                     select new { o, e };
-        if (effectiveUnitId is { } unitId) query = query.Where(x => x.e.UnitId == unitId || x.e.UnitId == null);
+
+        if (allowed is not null)
+        {
+            if (q.UnitId is { } req)
+            {
+                query = query.Where(x => x.e.UnitId == req);
+            }
+            else
+            {
+                query = query.Where(x => x.e.UnitId == null || (x.e.UnitId != null && allowed.Contains(x.e.UnitId.Value)));
+            }
+        }
+        else if (q.UnitId is { } uid)
+        {
+            query = query.Where(x => x.e.UnitId == uid);
+        }
+
         if (q.Type is { } type) query = query.Where(x => x.e.Type == type);
 
         return Results.Ok(await query.OrderBy(x => x.o.StartsAt)
@@ -141,13 +220,37 @@ public static class EventEndpoints
             .ToListAsync(ct));
     }
 
-    private static async Task<IResult> Get(Guid id, EventsDbContext db, CancellationToken ct) =>
-        await db.Events.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id, ct) is { } e ? Results.Ok(e.ToResponse()) : NotFound.ToError();
+    private static async Task<IResult> Get(
+        Guid id,
+        EventsDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct) =>
+        await FindScopedAsync(id, db, currentAccess, units, tracking: false, ct) is { } e ? Results.Ok(e.ToResponse()) : NotFound.ToError();
 
-    private static async Task<IResult> Create(SaveEventRequest r, EventsDbContext db, OccurrenceSync sync, ICurrentAccess currentAccess, CancellationToken ct)
+    private static async Task<IResult> Create(
+        SaveEventRequest r,
+        EventsDbContext db,
+        OccurrenceSync sync,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
         var access = await currentAccess.GetAsync(ct);
-        var effectiveUnitId = access?.ScopeUnitId ?? r.UnitId;
+        Guid? effectiveUnitId;
+        if (access?.ScopeUnitId is { } scopeUnit)
+        {
+            var allowed = await units.GetSubtreeIdsAsync(scopeUnit, ct);
+            if (r.UnitId is { } requested && !allowed.Contains(requested))
+            {
+                return Error.Validation("event.invalid_unit", "You do not have access to create events for this unit.").ToError();
+            }
+            effectiveUnitId = r.UnitId ?? scopeUnit;
+        }
+        else
+        {
+            effectiveUnitId = r.UnitId;
+        }
 
         var slug = r.Slug ?? Slug.From(r.Title);
         if (await db.Events.AnyAsync(e => e.Slug == slug, ct))
@@ -167,12 +270,35 @@ public static class EventEndpoints
         return Results.Created($"/api/v1/events/{entity.Id}", entity.ToResponse());
     }
 
-    private static async Task<IResult> Update(Guid id, SaveEventRequest r, EventsDbContext db, OccurrenceSync sync, CancellationToken ct)
+    private static async Task<IResult> Update(
+        Guid id,
+        SaveEventRequest r,
+        EventsDbContext db,
+        OccurrenceSync sync,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
-        var entity = await db.Events.Include(e => e.Occurrences).FirstOrDefaultAsync(e => e.Id == id, ct);
+        var entity = await FindScopedAsync(id, db, currentAccess, units, tracking: true, ct);
         if (entity is null)
         {
             return NotFound.ToError();
+        }
+
+        var access = await currentAccess.GetAsync(ct);
+        Guid? effectiveUnitId = entity.UnitId;
+        if (access?.ScopeUnitId is { } scopeUnit)
+        {
+            var allowed = await units.GetSubtreeIdsAsync(scopeUnit, ct);
+            if (r.UnitId is { } requested && !allowed.Contains(requested))
+            {
+                return Error.Validation("event.invalid_unit", "You do not have access to assign events to this unit.").ToError();
+            }
+            effectiveUnitId = r.UnitId ?? entity.UnitId ?? scopeUnit;
+        }
+        else if (r.UnitId != null)
+        {
+            effectiveUnitId = r.UnitId;
         }
 
         var slug = r.Slug ?? entity.Slug;
@@ -181,21 +307,37 @@ public static class EventEndpoints
             return SlugTaken.ToError();
         }
 
-        entity.Update(ToDetails(r, slug));
+        entity.Update(ToDetails(r with { UnitId = effectiveUnitId }, slug));
         await sync.SyncAsync(entity, ct);
         await db.SaveChangesAsync(ct);
         return Results.Ok(entity.ToResponse());
     }
 
-    private static async Task<IResult> Publish(Guid id, EventsDbContext db, CancellationToken ct) =>
-        await Transition(id, db, e => e.Publish(), ct);
+    private static async Task<IResult> Publish(
+        Guid id,
+        EventsDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct) =>
+        await Transition(id, db, currentAccess, units, e => e.Publish(), ct);
 
-    private static async Task<IResult> Cancel(Guid id, EventsDbContext db, CancellationToken ct) =>
-        await Transition(id, db, e => e.Cancel(), ct);
+    private static async Task<IResult> Cancel(
+        Guid id,
+        EventsDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct) =>
+        await Transition(id, db, currentAccess, units, e => e.Cancel(), ct);
 
-    private static async Task<IResult> Transition(Guid id, EventsDbContext db, Action<Event> action, CancellationToken ct)
+    private static async Task<IResult> Transition(
+        Guid id,
+        EventsDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        Action<Event> action,
+        CancellationToken ct)
     {
-        var entity = await db.Events.Include(e => e.Occurrences).FirstOrDefaultAsync(e => e.Id == id, ct);
+        var entity = await FindScopedAsync(id, db, currentAccess, units, tracking: true, ct);
         if (entity is null)
         {
             return NotFound.ToError();
@@ -206,9 +348,14 @@ public static class EventEndpoints
         return Results.Ok(entity.ToResponse());
     }
 
-    private static async Task<IResult> Delete(Guid id, EventsDbContext db, CancellationToken ct)
+    private static async Task<IResult> Delete(
+        Guid id,
+        EventsDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
-        var entity = await db.Events.FirstOrDefaultAsync(e => e.Id == id, ct);
+        var entity = await FindScopedAsync(id, db, currentAccess, units, tracking: true, ct);
         if (entity is null)
         {
             return NotFound.ToError();
@@ -219,11 +366,19 @@ public static class EventEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> Occurrences(Guid id, DateTimeOffset? from, DateTimeOffset? to, EventsDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> Occurrences(
+        Guid id,
+        DateTimeOffset? from,
+        DateTimeOffset? to,
+        EventsDbContext db,
+        TimeProvider clock,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
         var start = from ?? clock.GetUtcNow().AddDays(-30);
         var end = to ?? clock.GetUtcNow().Add(OccurrenceScheduler.Horizon);
-        var e = await db.Events.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+        var e = await FindScopedAsync(id, db, currentAccess, units, tracking: false, ct);
         if (e is null)
         {
             return NotFound.ToError();

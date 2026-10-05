@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -17,6 +18,8 @@ public sealed class OutboxProcessorBackgroundService(
     IOptions<OutboxOptions> options,
     ILogger<OutboxProcessorBackgroundService> logger) : BackgroundService
 {
+    private static readonly ConcurrentDictionary<string, Type?> TypeCache = new();
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(options.Value.PollingInterval);
@@ -31,8 +34,14 @@ public sealed class OutboxProcessorBackgroundService(
                 {
                     if (scope.ServiceProvider.GetService(moduleDb.ContextType) is ModuleDbContext dbContext)
                     {
-                        // Drain up to BatchSize messages with SKIP LOCKED
-                        await ProcessModuleOutboxAsync(scope.ServiceProvider, dbContext, stoppingToken);
+                        // Drain up to BatchSize messages with SKIP LOCKED while full batches return
+                        while (await ProcessModuleOutboxAsync(scope.ServiceProvider, dbContext, stoppingToken) == options.Value.BatchSize)
+                        {
+                            if (stoppingToken.IsCancellationRequested)
+                            {
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -44,27 +53,24 @@ public sealed class OutboxProcessorBackgroundService(
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    private async Task ProcessModuleOutboxAsync(IServiceProvider serviceProvider, ModuleDbContext context, CancellationToken cancellationToken)
+    private async Task<int> ProcessModuleOutboxAsync(IServiceProvider serviceProvider, ModuleDbContext context, CancellationToken cancellationToken)
     {
         try
         {
-            await context.Database.CreateExecutionStrategy().ExecuteAsync(
+            return await context.Database.CreateExecutionStrategy().ExecuteAsync(
                 (Context: context, Service: this, Token: cancellationToken),
-                static async (_, state, ct) =>
-                {
-                    await state.Service.ClaimAndDispatchBatchAsync(state.Context, ct);
-                    return true;
-                },
+                static async (_, state, ct) => await state.Service.ClaimAndDispatchBatchAsync(state.Context, ct),
                 verifySucceeded: null,
                 cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Failed to claim and dispatch outbox batch for schema {Schema}", context.Schema);
+            return 0;
         }
     }
 
-    private async Task ClaimAndDispatchBatchAsync(ModuleDbContext context, CancellationToken cancellationToken)
+    private async Task<int> ClaimAndDispatchBatchAsync(ModuleDbContext context, CancellationToken cancellationToken)
     {
         context.ChangeTracker.Clear();
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
@@ -83,7 +89,7 @@ public sealed class OutboxProcessorBackgroundService(
 
         if (messages.Count == 0)
         {
-            return;
+            return 0;
         }
 
         foreach (var message in messages)
@@ -91,7 +97,7 @@ public sealed class OutboxProcessorBackgroundService(
             message.Attempts++;
             try
             {
-                var type = Type.GetType(message.Type, throwOnError: false);
+                var type = TypeCache.GetOrAdd(message.Type, static t => Type.GetType(t, throwOnError: false));
                 if (type is not null && System.Text.Json.JsonSerializer.Deserialize(
                     message.Content, type, Platform.Infrastructure.Persistence.Interceptors.PlatformSaveChangesInterceptor.EventSerializerOptions) is Platform.SharedKernel.Domain.IDomainEvent domainEvent)
                 {
@@ -115,5 +121,6 @@ public sealed class OutboxProcessorBackgroundService(
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return messages.Count;
     }
 }

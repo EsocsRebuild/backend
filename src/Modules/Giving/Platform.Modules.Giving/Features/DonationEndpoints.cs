@@ -154,7 +154,40 @@ public static class DonationEndpoints
             d.Reference, d.Notes, d.IsLocked, d.CreatedAt)).ToList();
     }
 
-    private static async Task<IResult> List([AsParameters] DonationQuery q, GivingDbContext db, ICurrentAccess currentAccess, CancellationToken ct)
+    private static async Task<Donation?> FindScopedAsync(
+        Guid id,
+        GivingDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        bool tracking,
+        CancellationToken ct)
+    {
+        var query = tracking ? db.Donations.Include(d => d.Allocations).AsQueryable() : db.Donations.AsNoTracking().Include(d => d.Allocations).AsQueryable();
+        var donation = await query.FirstOrDefaultAsync(d => d.Id == id, ct);
+        if (donation is null)
+        {
+            return null;
+        }
+
+        var access = await currentAccess.GetAsync(ct);
+        if (access?.ScopeUnitId is { } scopeUnit)
+        {
+            var allowed = await units.GetSubtreeIdsAsync(scopeUnit, ct);
+            if (donation.UnitId is not { } unitId || !allowed.Contains(unitId))
+            {
+                return null;
+            }
+        }
+
+        return donation;
+    }
+
+    private static async Task<IResult> List(
+        [AsParameters] DonationQuery q,
+        GivingDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
         var page = new PageRequest(q.Page, q.PageSize);
         var query = db.Donations.AsNoTracking().Include(d => d.Allocations).AsQueryable();
@@ -168,8 +201,26 @@ public static class DonationEndpoints
         if (q.Method is { } method) query = query.Where(d => d.Method == method);
 
         var access = await currentAccess.GetAsync(ct);
-        var effectiveUnitId = access?.ScopeUnitId ?? q.UnitId;
-        if (effectiveUnitId is { } uid) query = query.Where(d => d.UnitId == uid);
+        if (access?.ScopeUnitId is { } scopeUnit)
+        {
+            var allowed = await units.GetSubtreeIdsAsync(scopeUnit, ct);
+            if (q.UnitId is { } req)
+            {
+                if (!allowed.Contains(req))
+                {
+                    return Results.Ok(new PagedResult<DonationResponse>([], page.SafePage, page.SafePageSize, 0));
+                }
+                query = query.Where(d => d.UnitId == req);
+            }
+            else
+            {
+                query = query.Where(d => d.UnitId != null && allowed.Contains(d.UnitId.Value));
+            }
+        }
+        else if (q.UnitId is { } uid)
+        {
+            query = query.Where(d => d.UnitId == uid);
+        }
 
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
@@ -188,15 +239,17 @@ public static class DonationEndpoints
         [AsParameters] KeysetRequest<string> request,
         GivingDbContext db,
         ICurrentAccess currentAccess,
+        IUnitDirectory units,
         CancellationToken ct)
     {
         var limit = request.SafeLimit;
         var query = db.Donations.AsNoTracking().Include(d => d.Allocations).AsQueryable();
 
         var access = await currentAccess.GetAsync(ct);
-        if (access?.ScopeUnitId is { } uid)
+        if (access?.ScopeUnitId is { } scopeUnit)
         {
-            query = query.Where(d => d.UnitId == uid);
+            var allowed = await units.GetSubtreeIdsAsync(scopeUnit, ct);
+            query = query.Where(d => d.UnitId != null && allowed.Contains(d.UnitId.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(request.Cursor))
@@ -234,25 +287,57 @@ public static class DonationEndpoints
         return Results.Ok(new KeysetResponse<DonationResponse, string>(responses, nextCursor, hasMore));
     }
 
-    private static async Task<IResult> Get(Guid id, GivingDbContext db, CancellationToken ct)
+    private static async Task<IResult> Get(
+        Guid id,
+        GivingDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
-        var donation = await db.Donations.AsNoTracking().Include(d => d.Allocations).FirstOrDefaultAsync(d => d.Id == id, ct);
+        var donation = await FindScopedAsync(id, db, currentAccess, units, tracking: false, ct);
         return donation is null ? NotFound.ToError() : Results.Ok((await ToResponsesAsync(db, [donation], ct))[0]);
     }
 
-    private static async Task<IResult> Record(RecordDonationRequest r, DonationRecorder recorder, GivingDbContext db, ICurrentAccess currentAccess, CancellationToken ct)
+    private static async Task<IResult> Record(
+        RecordDonationRequest r,
+        DonationRecorder recorder,
+        GivingDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
         var access = await currentAccess.GetAsync(ct);
-        var effectiveUnitId = access?.ScopeUnitId ?? r.UnitId;
+        Guid? effectiveUnitId;
+        if (access?.ScopeUnitId is { } scopeUnit)
+        {
+            var allowed = await units.GetSubtreeIdsAsync(scopeUnit, ct);
+            if (r.UnitId is { } requested && !allowed.Contains(requested))
+            {
+                return Error.Validation("donation.invalid_unit", "You do not have access to record gifts for this unit.").ToError();
+            }
+            effectiveUnitId = r.UnitId ?? scopeUnit;
+        }
+        else
+        {
+            effectiveUnitId = r.UnitId;
+        }
+
         var result = await recorder.RecordAsync(r, DonationStatus.Completed, effectiveUnitId, ct);
         return result.IsFailure
             ? result.Error.ToError()
             : Results.Created($"/api/v1/donations/{result.Value.Id}", (await ToResponsesAsync(db, [result.Value], ct))[0]);
     }
 
-    private static async Task<IResult> Update(Guid id, RecordDonationRequest r, GivingDbContext db, DonationRecorder recorder, CancellationToken ct)
+    private static async Task<IResult> Update(
+        Guid id,
+        RecordDonationRequest r,
+        GivingDbContext db,
+        DonationRecorder recorder,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
-        var donation = await db.Donations.Include(d => d.Allocations).FirstOrDefaultAsync(d => d.Id == id, ct);
+        var donation = await FindScopedAsync(id, db, currentAccess, units, tracking: true, ct);
         if (donation is null)
         {
             return NotFound.ToError();
@@ -271,9 +356,15 @@ public static class DonationEndpoints
         return Results.Ok((await ToResponsesAsync(db, [donation], ct))[0]);
     }
 
-    private static async Task<IResult> Void(Guid id, StatusChangeRequest r, GivingDbContext db, CancellationToken ct)
+    private static async Task<IResult> Void(
+        Guid id,
+        StatusChangeRequest r,
+        GivingDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        CancellationToken ct)
     {
-        var donation = await db.Donations.FirstOrDefaultAsync(d => d.Id == id, ct);
+        var donation = await FindScopedAsync(id, db, currentAccess, units, tracking: true, ct);
         if (donation is null)
         {
             return NotFound.ToError();
@@ -284,9 +375,16 @@ public static class DonationEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> Refund(Guid id, StatusChangeRequest r, GivingDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> Refund(
+        Guid id,
+        StatusChangeRequest r,
+        GivingDbContext db,
+        ICurrentAccess currentAccess,
+        IUnitDirectory units,
+        TimeProvider clock,
+        CancellationToken ct)
     {
-        var donation = await db.Donations.FirstOrDefaultAsync(d => d.Id == id, ct);
+        var donation = await FindScopedAsync(id, db, currentAccess, units, tracking: true, ct);
         if (donation is null)
         {
             return NotFound.ToError();
