@@ -122,7 +122,7 @@ public static class MembersEndpoints
         group.MapPost("/", Create).WithValidation<MemberInput>().RequirePermission(Permissions.Members.Manage).WithSummary("Add a member");
         group.MapPatch("/{id:guid}", Update).WithValidation<MemberInput>().RequirePermission(Permissions.Members.Manage).WithSummary("Update a member");
         group.MapPost("/bulk", Bulk).WithValidation<BulkMembersRequest>().RequirePermission(Permissions.Members.Manage).WithSummary("Approve or deactivate many members");
-        group.MapDelete("/{id:guid}", Delete).RequirePermission(Permissions.Members.Manage).RequireSudo().WithSummary("Delete a member");
+        group.MapDelete("/{id:guid}", Delete).RequirePermission(Permissions.Members.Manage).WithSummary("Delete a member");
         group.MapPost("/bulk-delete", BulkDelete).WithValidation<BulkDeleteRequest>().RequirePermission(Permissions.Members.Manage).RequireSudo()
             .WithSummary("Delete many members");
         group.MapPost("/{id:guid}/stage", ChangeStage).RequirePermission(Permissions.Members.Manage).WithSummary("Move a person along their church journey");

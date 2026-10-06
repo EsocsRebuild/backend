@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<Platform.Application.Abstractions.IAuditLog>(sp => sp.GetRequiredService<AuditLog>());
         services.AddScoped<IEventDispatcher, InProcessEventDispatcher>();
         services.Configure<OutboxOptions>(configuration.GetSection(OutboxOptions.SectionName));
+        services.AddHostedService<OutboxProcessorBackgroundService>();
 
         // Caching: in-memory L1 + Redis L2 (when configured) behind HybridCache.
         var redis = configuration.GetConnectionString("Redis");

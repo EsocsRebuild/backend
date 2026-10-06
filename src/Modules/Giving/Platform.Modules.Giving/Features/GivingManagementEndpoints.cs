@@ -96,10 +96,13 @@ public static class GivingManagementEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var funds = endpoints.MapModuleGroup("funds", "Giving");
-        funds.MapGet("/", ListFunds).RequirePermission(Permissions.Giving.View).WithSummary("List funds");
-        funds.MapPost("/", CreateFund).WithValidation<SaveFundRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Create a fund");
-        funds.MapPut("/{id:guid}", UpdateFund).WithValidation<SaveFundRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Update a fund");
+        foreach (var prefix in new[] { "giving/funds", "funds" })
+        {
+            var funds = endpoints.MapModuleGroup(prefix, "Giving");
+            funds.MapGet("/", ListFunds).RequirePermission(Permissions.Giving.View).WithSummary("List funds");
+            funds.MapPost("/", CreateFund).WithValidation<SaveFundRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Create a fund");
+            funds.MapPut("/{id:guid}", UpdateFund).WithValidation<SaveFundRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Update a fund");
+        }
 
         var campaigns = endpoints.MapModuleGroup("giving/campaigns", "Giving");
         campaigns.MapGet("/", ListCampaigns).RequirePermission(Permissions.Giving.View).WithSummary("Campaigns with progress");
@@ -107,15 +110,21 @@ public static class GivingManagementEndpoints
         campaigns.MapPut("/{id:guid}", UpdateCampaign).WithValidation<SaveCampaignRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Update a campaign");
         campaigns.MapGet("/{id:guid}/pledges", ListPledges).RequirePermission(Permissions.Giving.View).WithSummary("Pledges with fulfilment");
 
-        var pledges = endpoints.MapModuleGroup("pledges", "Giving");
-        pledges.MapPost("/", CreatePledge).WithValidation<SavePledgeRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Record a pledge");
-        pledges.MapPut("/{id:guid}", UpdatePledge).WithValidation<SavePledgeRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Update a pledge");
+        foreach (var prefix in new[] { "giving/pledges", "pledges" })
+        {
+            var pledges = endpoints.MapModuleGroup(prefix, "Giving");
+            pledges.MapPost("/", CreatePledge).WithValidation<SavePledgeRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Record a pledge");
+            pledges.MapPut("/{id:guid}", UpdatePledge).WithValidation<SavePledgeRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Update a pledge");
+        }
 
-        var batches = endpoints.MapModuleGroup("batches", "Giving");
-        batches.MapGet("/", ListBatches).RequirePermission(Permissions.Giving.View).WithSummary("Counting batches with reconciliation");
-        batches.MapPost("/", OpenBatch).WithValidation<SaveBatchRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Open a batch");
-        batches.MapPost("/{id:guid}/close", CloseBatch).RequirePermission(Permissions.Giving.Manage).WithSummary("Close and lock a batch");
-        batches.MapPost("/{id:guid}/reopen", ReopenBatch).RequirePermission(Permissions.Giving.Manage).WithSummary("Reopen a closed batch");
+        foreach (var prefix in new[] { "giving/batches", "batches" })
+        {
+            var batches = endpoints.MapModuleGroup(prefix, "Giving");
+            batches.MapGet("/", ListBatches).RequirePermission(Permissions.Giving.View).WithSummary("Counting batches with reconciliation");
+            batches.MapPost("/", OpenBatch).WithValidation<SaveBatchRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Open a batch");
+            batches.MapPost("/{id:guid}/close", CloseBatch).RequirePermission(Permissions.Giving.Manage).WithSummary("Close and lock a batch");
+            batches.MapPost("/{id:guid}/reopen", ReopenBatch).RequirePermission(Permissions.Giving.Manage).WithSummary("Reopen a closed batch");
+        }
 
         var reports = endpoints.MapModuleGroup("giving/reports", "Giving");
         reports.MapGet("/summary", Summary).RequirePermission(Permissions.Giving.Reports).WithSummary("Totals by fund, method and month");
