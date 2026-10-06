@@ -113,7 +113,7 @@ jobs:
         run: |
           dotnet tool restore
           for m in Identity Tenancy People Groups Events Giving Content Communications; do
-            dotnet ef migrations has-pending-model-changes -p src/Modules/$m/Platform.Modules.$m -s src/Host/Platform.Api --no-build -c Release
+            dotnet ef migrations has-pending-model-changes -p src/Modules/$m/Platform.Modules.$m -s src/Host/Platform.Api --no-build --configuration Release
           done
 
       - name: Run Database & Real-Time Integration Tests
