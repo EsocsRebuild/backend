@@ -41,7 +41,14 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-          cache: true
+
+      - name: Cache NuGet Packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'Directory.Build.props', 'Platform.slnx') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore Dependencies
         run: dotnet restore Platform.slnx
@@ -88,7 +95,14 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-          cache: true
+
+      - name: Cache NuGet Packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'Directory.Build.props', 'Platform.slnx') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore & Build
         run: |
