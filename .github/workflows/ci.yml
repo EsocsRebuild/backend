@@ -1,13 +1,71 @@
-name: CI
+name: Fast PR & CI Gate (.NET Backend)
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+concurrency:
+  group: ci-backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  build-test:
+  # =========================================================================
+  # Tier 1: Fast PR Sanity Gate (< 90 seconds)
+  # Runs on every push to every PR. Restores, compiles, and runs pure
+  # in-memory unit tests and modular boundary architecture tests.
+  # No database containers or heavy services required.
+  # =========================================================================
+  tier1-fast-gate:
+    name: "Tier 1: PR Sanity (<90s)"
     runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          cache: true
+
+      - name: Restore Dependencies
+        run: dotnet restore Platform.slnx
+
+      - name: Fast Compilation Check (TreatWarningsAsErrors)
+        run: dotnet build Platform.slnx --no-restore -c Release
+
+      - name: Enforce Architecture & Module Boundary Rules
+        run: dotnet test tests/Platform.ArchitectureTests/Platform.ArchitectureTests.csproj --no-build -c Release
+
+      - name: Run Fast In-Memory Unit Tests
+        run: dotnet test tests/Platform.UnitTests/Platform.UnitTests.csproj --no-build -c Release
+
+  # =========================================================================
+  # Tier 2: Integration Gate (2-4 minutes)
+  # Runs only when PR is marked ready for review (non-draft) or on main push.
+  # Spins up Postgres & Redis to execute database & cross-module integration tests.
+  # =========================================================================
+  tier2-integration-gate:
+    name: "Tier 2: Integration & Migrations"
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    needs: [tier1-fast-gate]
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
     services:
       postgres:
         image: postgres:17-alpine
@@ -17,29 +75,50 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - name: Restore
-        run: dotnet restore Platform.slnx
-      - name: Build (warnings are errors)
-        run: dotnet build Platform.slnx --no-restore -c Release
-      - name: Check for missing migrations
+          cache: true
+
+      - name: Restore & Build
+        run: |
+          dotnet restore Platform.slnx
+          dotnet build Platform.slnx --no-restore -c Release
+
+      - name: Verify EF Core Migration Model Parity
         run: |
           dotnet tool restore
           for m in Identity Tenancy People Groups Events Giving Content Communications; do
             dotnet ef migrations has-pending-model-changes -p src/Modules/$m/Platform.Modules.$m -s src/Host/Platform.Api --no-build -c Release
           done
-      - name: Test
+
+      - name: Run Database & Real-Time Integration Tests
         env:
           TEST_DB_CONNECTION: Host=localhost;Port=5432;Username=postgres;Password=postgres
-        run: dotnet test --solution Platform.slnx --no-build -c Release
+          ConnectionStrings__Redis: localhost:6379
+        run: dotnet test tests/Platform.IntegrationTests/Platform.IntegrationTests.csproj --no-build -c Release
 
-  docker:
+  # =========================================================================
+  # Tier 3: Deployment & Docker Artifacts (Post-Merge only)
+  # Builds production container artifacts on main branch merges.
+  # =========================================================================
+  tier3-deployment-artifacts:
+    name: "Tier 3: Build Docker Image"
     runs-on: ubuntu-latest
-    needs: build-test
+    timeout-minutes: 10
+    needs: [tier2-integration-gate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t platform-api:${{ github.sha }} .
+      - name: Build Production Image
+        run: docker build -t platform-api:${{ github.sha }} .
