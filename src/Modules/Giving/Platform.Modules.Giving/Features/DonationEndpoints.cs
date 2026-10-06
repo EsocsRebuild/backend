@@ -131,14 +131,17 @@ public static class DonationEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapModuleGroup("donations", "Giving");
-        group.MapGet("/", List).RequirePermission(Permissions.Giving.View).WithSummary("Search donations");
-        group.MapGet("/keyset", KeysetList).RequirePermission(Permissions.Giving.View).WithSummary("Keyset paginated donations");
-        group.MapGet("/{id:guid}", Get).RequirePermission(Permissions.Giving.View).WithSummary("Get a donation");
-        group.MapPost("/", Record).WithValidation<RecordDonationRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Record a gift (cash, cheque, transfer…)");
-        group.MapPut("/{id:guid}", Update).WithValidation<RecordDonationRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Correct a gift (open batches only)");
-        group.MapPost("/{id:guid}/void", Void).RequirePermission(Permissions.Giving.Manage).WithSummary("Void a gift recorded in error");
-        group.MapPost("/{id:guid}/refund", Refund).RequirePermission(Permissions.Giving.Manage).WithSummary("Mark a completed gift as refunded");
+        foreach (var prefix in new[] { "giving/donations", "donations" })
+        {
+            var group = endpoints.MapModuleGroup(prefix, "Giving");
+            group.MapGet("/", List).RequirePermission(Permissions.Giving.View).WithSummary("Search donations");
+            group.MapGet("/keyset", KeysetList).RequirePermission(Permissions.Giving.View).WithSummary("Keyset paginated donations");
+            group.MapGet("/{id:guid}", Get).RequirePermission(Permissions.Giving.View).WithSummary("Get a donation");
+            group.MapPost("/", Record).WithValidation<RecordDonationRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Record a gift (cash, cheque, transfer…)");
+            group.MapPut("/{id:guid}", Update).WithValidation<RecordDonationRequest>().RequirePermission(Permissions.Giving.Manage).WithSummary("Correct a gift (open batches only)");
+            group.MapPost("/{id:guid}/void", Void).RequirePermission(Permissions.Giving.Manage).WithSummary("Void a gift recorded in error");
+            group.MapPost("/{id:guid}/refund", Refund).RequirePermission(Permissions.Giving.Manage).WithSummary("Mark a completed gift as refunded");
+        }
     }
 
     internal static async Task<List<DonationResponse>> ToResponsesAsync(GivingDbContext db, IReadOnlyList<Donation> donations, CancellationToken ct)
