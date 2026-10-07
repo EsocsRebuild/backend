@@ -1,6 +1,6 @@
 using System.Globalization;
-using System.Net;
 using Platform.Application.Abstractions;
+using Platform.Application.Emails;
 using Platform.Application.Messaging;
 using Platform.Modules.Communications.Domain;
 using Platform.Modules.Communications.Infrastructure;
@@ -21,33 +21,36 @@ internal sealed class GivingThankYou(
     public async Task Handle(DonationCompletedIntegrationEvent e, CancellationToken cancellationToken)
     {
         var tenant = await tenants.GetAsync(e.TenantId, cancellationToken);
-        var organisation = tenant?.Name ?? "our church";
+        var organisation = tenant?.Name ?? ChurchEmailLayoutRenderer.DefaultChurchName;
         PersonSummary? person = null;
         if (e.PersonId is { } personId)
         {
             person = (await people.GetSummariesAsync([personId], cancellationToken)).GetValueOrDefault(personId);
         }
 
-        var amount = e.Amount.ToString("N2", CultureInfo.InvariantCulture) + " " + e.Currency;
-        var name = person?.FullName.Split(' ')[0] ?? e.DonorName?.Split(' ')[0] ?? "friend";
+        var donorFullName = person?.FullName ?? e.DonorName ?? "Faithful Giver";
         var to = e.DonorEmail ?? person?.Email;
 
         if (!string.IsNullOrWhiteSpace(to))
         {
-            var html = $"""
-                <p>Dear {WebUtility.HtmlEncode(name)},</p>
-                <p>Thank you for your generous gift of <strong>{amount}</strong> to {WebUtility.HtmlEncode(organisation)} on {e.ReceivedOn:dd MMM yyyy}.</p>
-                <p>Receipt number: <strong>{e.ReceiptNumber}</strong></p>
-                <p>"God loves a cheerful giver." — 2 Corinthians 9:7</p>
-                """;
-            await email.SendAsync(new EmailMessage(to, $"Thank you for your gift — receipt {e.ReceiptNumber}", html,
-                $"Dear {name},\n\nThank you for your gift of {amount} to {organisation} on {e.ReceivedOn:dd MMM yyyy}.\nReceipt: {e.ReceiptNumber}"), cancellationToken);
+            var msg = ChurchEmailLayoutRenderer.BuildDonationReceiptMessage(
+                to: to,
+                donorName: donorFullName,
+                churchName: organisation,
+                fundName: "General & Kingdom Initiatives",
+                amount: e.Amount,
+                currency: e.Currency,
+                reference: e.ReceiptNumber,
+                date: new DateTimeOffset(e.ReceivedOn.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero));
+
+            await email.SendAsync(msg, cancellationToken);
         }
 
         if (person?.UserId is { } userId)
         {
+            var formattedAmount = $"{e.Currency.ToUpperInvariant()} {e.Amount.ToString("N2", CultureInfo.InvariantCulture)}";
             db.Notifications.Add(Notification.Create(userId, "giving", "Thank you for your gift",
-                $"We received {amount}. Receipt {e.ReceiptNumber}.", "/giving"));
+                $"We received {formattedAmount}. Official Receipt: {e.ReceiptNumber}.", "/giving"));
             await db.SaveChangesAsync(cancellationToken);
         }
     }

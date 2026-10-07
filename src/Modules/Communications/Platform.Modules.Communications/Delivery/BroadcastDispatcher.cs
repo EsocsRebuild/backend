@@ -143,9 +143,24 @@ internal sealed partial class BroadcastDispatcher(IServiceScopeFactory scopes, T
         switch (broadcast.Channel)
         {
             case Channel.Email:
+                var renderedTitle = TemplateRenderer.Render(broadcast.Subject ?? organisation, values, htmlEncode: false);
+                var renderedBody = TemplateRenderer.Render(broadcast.Body, values, htmlEncode: true);
+                var htmlLayout = Platform.Application.Emails.ChurchEmailLayoutRenderer.Render(new Platform.Application.Emails.ChurchEmailLayoutModel(
+                    Subject: renderedTitle,
+                    ChurchName: organisation,
+                    HeaderBadge: "Church Broadcast",
+                    RecipientName: delivery.RecipientName,
+                    Title: renderedTitle,
+                    HtmlContent: $"<p>{renderedBody.Replace("\n", "<br/>")}</p>",
+                    PostalAddress: Platform.Application.Emails.ChurchEmailLayoutRenderer.DefaultPostalAddress));
+
+                var textLayout = $"Dear {values["firstName"]},\n\n{TemplateRenderer.Render(broadcast.Body, values, false)}\n\n--\n{organisation}";
+
                 await sp.GetRequiredService<IEmailSender>().SendAsync(new EmailMessage(delivery.Destination!,
-                    TemplateRenderer.Render(broadcast.Subject ?? organisation, values, htmlEncode: false),
-                    TemplateRenderer.Render(broadcast.Body, values, htmlEncode: true)), ct);
+                    renderedTitle,
+                    htmlLayout,
+                    textLayout,
+                    Tags: ["broadcast", "pastoral-newsletter"]), ct);
                 break;
             case Channel.Sms:
                 await sp.GetRequiredService<ISmsSender>().SendAsync(delivery.Destination!, TemplateRenderer.Render(broadcast.Body, values, false), ct);
