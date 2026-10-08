@@ -423,7 +423,9 @@ public static class EventEndpoints
             .OrderBy(o => o.StartsAt).Take(12)
             .Select(o => new
             {
-                o.Id, o.StartsAt, o.EndsAt,
+                o.Id,
+                o.StartsAt,
+                o.EndsAt,
                 Taken = db.Registrations.Where(r => r.OccurrenceId == o.Id && (r.Status == RegistrationStatus.Confirmed || r.Status == RegistrationStatus.CheckedIn))
                     .Sum(r => 1 + r.Guests),
             })

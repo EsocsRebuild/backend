@@ -107,8 +107,14 @@ public class EventCapacityTests(PlatformFactory factory)
         var start = DateTimeOffset.UtcNow.AddDays(3);
         var created = await admin.PostAsJsonAsync("/api/v1/events", new
         {
-            title = "Couples Dinner", type = "Social", visibility = "Public", startsAt = start, endsAt = start.AddHours(3),
-            timeZone = "Africa/Lagos", registrationEnabled = true, capacity = 5,
+            title = "Couples Dinner",
+            type = "Social",
+            visibility = "Public",
+            startsAt = start,
+            endsAt = start.AddHours(3),
+            timeZone = "Africa/Lagos",
+            registrationEnabled = true,
+            capacity = 5,
         }, ct);
         var eventId = (await created.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("data").GetProperty("id").GetGuid();
         await admin.PostAsync($"/api/v1/events/{eventId}/publish", null, ct);

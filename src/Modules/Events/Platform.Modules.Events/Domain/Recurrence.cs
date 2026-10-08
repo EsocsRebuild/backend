@@ -20,8 +20,13 @@ public sealed record Recurrence(Frequency Frequency, int Interval, IReadOnlyList
 
     private static readonly Dictionary<string, DayOfWeek> Days = new(StringComparer.Ordinal)
     {
-        ["SU"] = DayOfWeek.Sunday, ["MO"] = DayOfWeek.Monday, ["TU"] = DayOfWeek.Tuesday, ["WE"] = DayOfWeek.Wednesday,
-        ["TH"] = DayOfWeek.Thursday, ["FR"] = DayOfWeek.Friday, ["SA"] = DayOfWeek.Saturday,
+        ["SU"] = DayOfWeek.Sunday,
+        ["MO"] = DayOfWeek.Monday,
+        ["TU"] = DayOfWeek.Tuesday,
+        ["WE"] = DayOfWeek.Wednesday,
+        ["TH"] = DayOfWeek.Thursday,
+        ["FR"] = DayOfWeek.Friday,
+        ["SA"] = DayOfWeek.Saturday,
     };
 
     public static bool TryParse(string rule, out Recurrence? recurrence, out string? error)

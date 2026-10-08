@@ -1,0 +1,70 @@
+# ==============================================================================
+# Production Docker Compose Stack with Traefik v3 Reverse Proxy & SSL
+# Usage:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml --env-file .env.production up -d
+# ==============================================================================
+services:
+  # Traefik v3 Edge Router / Reverse Proxy
+  traefik:
+    image: traefik:v3.2
+    container_name: platform-traefik
+    restart: unless-stopped
+    command:
+      # Entrypoints
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # Global HTTP -> HTTPS Redirect
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # Docker Provider (reads container labels)
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      # Automated Let's Encrypt TLS (ACME)
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@esocs.org}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      # Logging & Metrics
+      - "--log.level=${TRAEFIK_LOG_LEVEL:-INFO}"
+      - "--accesslog=true"
+      # Optional Traefik Dashboard (set TRAEFIK_DASHBOARD=true)
+      - "--api.dashboard=true"
+    ports:
+      - "80:80"     # HTTP (redirects to 443)
+      - "443:443"   # HTTPS
+      - "8080:8080" # Optional Dashboard port (restrict via firewall in production)
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "traefik-certificates:/letsencrypt"
+    networks:
+      - default
+
+  # Connect Core API Server to Traefik Reverse Proxy
+  api:
+    ports: [] # Close public 8080 port; all traffic now routes securely through Traefik
+    labels:
+      - "traefik.enable=true"
+      # HTTPS Router
+      - "traefik.http.routers.api.rule=Host(`${DOMAIN_API:-api.esocs.org}`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.api.service=api-service"
+      # Upstream Service Port
+      - "traefik.http.services.api-service.loadbalancer.server.port=8080"
+      # Middlewares: Security Headers, Gzip Compression, Request Size Buffering
+      - "traefik.http.routers.api.middlewares=api-headers,api-compress,api-buffering"
+      # Security Headers Middleware
+      - "traefik.http.middlewares.api-headers.headers.sslredirect=true"
+      - "traefik.http.middlewares.api-headers.headers.stsseconds=31536000"
+      - "traefik.http.middlewares.api-headers.headers.stsincludesubdomains=true"
+      - "traefik.http.middlewares.api-headers.headers.stspreload=true"
+      - "traefik.http.middlewares.api-headers.headers.framedeny=true"
+      - "traefik.http.middlewares.api-headers.headers.contenttypenosniff=true"
+      - "traefik.http.middlewares.api-headers.headers.browserxssfilter=true"
+      # Gzip & Brotli Compression Middleware
+      - "traefik.http.middlewares.api-compress.compress=true"
+      # Request Buffering Middleware (allows up to 64MB for media uploads / imports)
+      - "traefik.http.middlewares.api-buffering.buffering.maxrequestbodysize=67108864"
+
+volumes:
+  traefik-certificates:
+

@@ -2,8 +2,8 @@ using Platform.Application.Security;
 using Platform.Modules.Communications.Delivery;
 using Platform.Modules.Identity.Domain;
 using Platform.Modules.People.Domain;
-using MembershipStatus = Platform.Modules.People.Domain.MembershipStatus;
 using Platform.SharedKernel.Domain;
+using MembershipStatus = Platform.Modules.People.Domain.MembershipStatus;
 
 namespace Platform.UnitTests;
 

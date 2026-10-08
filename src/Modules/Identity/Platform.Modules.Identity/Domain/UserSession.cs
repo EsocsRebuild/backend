@@ -49,17 +49,17 @@ public sealed class UserSession : Entity
 
     public static UserSession Start(
         Guid userId, Guid? tenantId, Guid? membershipId, ClientType clientType, bool remember, DateTimeOffset now, string? ipAddress, string? userAgent) => new()
-    {
-        UserId = userId,
-        TenantId = tenantId,
-        MembershipId = membershipId,
-        ClientType = clientType,
-        Remember = remember,
-        CreatedAt = now,
-        LastUsedAt = now,
-        IpAddress = ipAddress,
-        UserAgent = userAgent is { Length: > 512 } ua ? ua[..512] : userAgent,
-    };
+        {
+            UserId = userId,
+            TenantId = tenantId,
+            MembershipId = membershipId,
+            ClientType = clientType,
+            Remember = remember,
+            CreatedAt = now,
+            LastUsedAt = now,
+            IpAddress = ipAddress,
+            UserAgent = userAgent is { Length: > 512 } ua ? ua[..512] : userAgent,
+        };
 
     public void Rotate(string newTokenHash, DateTimeOffset now, DateTimeOffset expiresAt, string? ipAddress)
     {
