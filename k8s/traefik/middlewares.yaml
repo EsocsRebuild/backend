@@ -1,0 +1,42 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: platform-security-headers
+  namespace: platform
+spec:
+  headers:
+    sslRedirect: true
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true
+    stsPreload: true
+    frameDeny: true
+    contentTypeNosniff: true
+    browserXssFilter: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: platform-compress
+  namespace: platform
+spec:
+  compress: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: platform-buffering
+  namespace: platform
+spec:
+  buffering:
+    maxRequestBodySize: 67108864 # 64MB for sermon recordings, avatars, and CSV imports
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: platform-ratelimit
+  namespace: platform
+spec:
+  rateLimit:
+    average: 100
+    burst: 200
+

@@ -59,6 +59,22 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 
 ---
 
+## 3b. Production Reverse Proxy with Traefik v3 (`docker-compose.traefik.yml`)
+
+The platform requires an edge reverse proxy in front of Kestrel for SSL termination, request buffering, and WebSocket upgrades.
+
+### Running Production with Traefik Edge Router
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml --env-file .env.production up -d
+```
+
+### What Traefik Does Automatically:
+- **Automatic Let's Encrypt TLS**: Obtains and renews SSL certificates for `api.esocs.org` automatically via ACME TLS-ALPN-01 challenges.
+- **Port 80 to 443 Redirection**: Redirects plain HTTP requests to HTTPS.
+- **WebSocket & SignalR Passthrough**: Streams real-time notifications with zero connection timeouts.
+- **Security Middlewares**: Adds HSTS headers, X-Frame-Options (`DENY`), Content-Type nosniff, and buffers uploads up to 64MB for sermon recordings and CSV imports.
+
+
 ## 4. Kubernetes (k8s) Microservices Architecture
 
 The platform provides a production-grade Kustomize-based Kubernetes configuration located in `k8s/`:
