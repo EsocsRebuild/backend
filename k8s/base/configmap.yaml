@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+  namespace: platform
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:8080"
+  DOTNET_gcServer: "1"
+  DOTNET_EnableDiagnostics: "0"
+  
+  # URLs and Identity Endpoints
+  Auth__Issuer: "https://api.esocs.org"
+  Auth__AppBaseUrl: "https://admin.esocs.org"
+  Auth__TotpIssuer: "ESOCS Admin"
+  
+  # CORS Whitelists
+  Cors__AllowedOrigins__0: "https://esocs.org"
+  Cors__AllowedOrigins__1: "https://admin.esocs.org"
+  Cors__AllowedOrigins__2: "https://portal.esocs.org"
+  
+  # Default Tenancy
+  Tenancy__DefaultTenant: "esocs"
+  
+  # Email Settings
+  Email__Provider: "Resend"
+  Email__FromAddress: "news@esocs.org"
+  Email__FromName: "ESOCS Communications"
+  Email__SmtpHost: ""
+  Email__SmtpPort: "587"
+  Email__UseStartTls: "true"
+  
+  # Rate Limits (Protected against brute-force / DDoS)
+  RateLimits__AuthPerMinute: "120"
+  RateLimits__PublicPerMinute: "600"
+  RateLimits__UserPerMinute: "1500"
+  
+  # Outbox & Event Dispatch Timing
+  Outbox__BatchSize: "100"
+  Outbox__IntervalSeconds: "5"
+

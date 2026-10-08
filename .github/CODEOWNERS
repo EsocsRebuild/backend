@@ -1,0 +1,30 @@
+# ==============================================================================
+# Code Ownership Declarations
+# ==============================================================================
+
+# Default fallback owners for the entire codebase
+* @TechDev
+
+# Architecture & Cross-Cutting BuildingBlocks
+/src/BuildingBlocks/           @TechDev
+/Directory.Build.props         @TechDev
+/Directory.Packages.props      @TechDev
+/global.json                   @TechDev
+
+# Domain Modules
+/src/Modules/Identity/         @TechDev
+/src/Modules/Tenancy/          @TechDev
+/src/Modules/People/           @TechDev
+/src/Modules/Groups/           @TechDev
+/src/Modules/Events/           @TechDev
+/src/Modules/Giving/           @TechDev
+/src/Modules/Content/          @TechDev
+/src/Modules/Communications/   @TechDev
+
+# Infrastructure & Hosting
+/src/Host/Platform.Api/        @TechDev
+/Dockerfile*                   @TechDev
+/docker-compose*.yml           @TechDev
+/.github/                      @TechDev
+/k8s/                          @TechDev
+

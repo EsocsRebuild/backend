@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1.7
+# ==============================================================================
+# Development Dockerfile for .NET 10 API
+# Supports hot-reload (dotnet watch), live code editing via volume mounts,
+# and non-root development execution.
+# ==============================================================================
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
+
+WORKDIR /workspace
+
+# Install global development tools (EF Core CLI)
+ENV PATH="${PATH}:/root/.dotnet/tools"
+RUN dotnet tool install --global dotnet-ef --version 10.0.12
+
+# Copy configuration and restore dependencies for faster caching
+COPY global.json Directory.Build.props Directory.Packages.props .editorconfig Platform.slnx ./
+
+# Copy all project definition files to cache restore layer
+COPY src/BuildingBlocks/*/*.csproj ./src/BuildingBlocks/*/
+COPY src/Host/*/*.csproj ./src/Host/*/
+COPY src/Modules/*/*/*.csproj ./src/Modules/*/*/
+COPY tests/*/*.csproj ./tests/*/
+
+# Restore solution dependencies
+RUN dotnet restore Platform.slnx
+
+# Copy source tree
+COPY . .
+
+# Environment variables for dev watch mode
+ENV ASPNETCORE_ENVIRONMENT=Development \
+    ASPNETCORE_URLS=http://+:8080 \
+    DOTNET_USE_POLLING_FILE_WATCHER=true \
+    DOTNET_WATCH_SUPPRESS_EMITTING_PAGE=true \
+    DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
+
+EXPOSE 8080
+
+# Default entrypoint runs with hot reload watching Platform.Api
+ENTRYPOINT ["dotnet", "watch", "--project", "src/Host/Platform.Api/Platform.Api.csproj", "run", "--no-launch-profile"]
+

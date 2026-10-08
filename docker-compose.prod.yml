@@ -1,0 +1,167 @@
+# ==============================================================================
+# Production Docker Compose Stack
+# Usage:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+# ==============================================================================
+services:
+  # Pre-deployment migration runner: executes self-contained EF Core migration bundles
+  migrations:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: platform-prod-migrations
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Applying EF Core migration bundles across all modules..."
+        for m in identity tenancy people groups events giving content communications; do
+          echo "Migrating $$m..."
+          /migrations/migrate-$$m --connection "$${ConnectionStrings__Database}" || exit 1
+        done
+        echo "All database migrations applied successfully."
+    environment:
+      ConnectionStrings__Database: Host=db;Port=5432;Database=${POSTGRES_DB:-platform_prod};Username=${POSTGRES_USER:-platform_app};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # Core API Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: platform-api:${IMAGE_TAG:-latest}
+    container_name: platform-prod-api
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${API_BIND_PORT:-8080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      DOTNET_gcServer: "1"
+      ConnectionStrings__Database: Host=db;Port=5432;Database=${POSTGRES_DB:-platform_prod};Username=${POSTGRES_USER:-platform_app};Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__Redis: redis:6379,password=${REDIS_PASSWORD}
+      Auth__SigningKey: ${JWT_SIGNING_KEY}
+      Auth__Issuer: ${AUTH_ISSUER:-https://api.esocs.org}
+      Auth__AppBaseUrl: ${ADMIN_PORTAL_URL:-https://admin.esocs.org}
+      Auth__TotpIssuer: ${TOTP_ISSUER:-ESOCS Admin}
+      Cors__AllowedOrigins__0: ${WEB_PORTAL_URL:-https://esocs.org}
+      Cors__AllowedOrigins__1: ${ADMIN_PORTAL_URL:-https://admin.esocs.org}
+      Email__Provider: ${EMAIL_PROVIDER:-Resend}
+      Email__FromAddress: ${EMAIL_FROM_ADDRESS:-no-reply@esocs.org}
+      Email__FromName: ${EMAIL_FROM_NAME:-ESOCS}
+      Email__ApiKey: ${EMAIL_API_KEY}
+      Email__SmtpHost: ${EMAIL_SMTP_HOST:-}
+      Email__SmtpPort: ${EMAIL_SMTP_PORT:-587}
+      Email__SmtpUsername: ${EMAIL_SMTP_USER:-}
+      Email__SmtpPassword: ${EMAIL_SMTP_PASSWORD:-}
+      RateLimits__AuthPerMinute: "120"
+      RateLimits__PublicPerMinute: "600"
+      RateLimits__UserPerMinute: "1200"
+    volumes:
+      - storage:/app/storage
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health/live || exit 1"]
+      interval: 15s
+      timeout: 3s
+      start_period: 15s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    restart: unless-stopped
+
+  # PostgreSQL 17 Database
+  db:
+    image: postgres:17-alpine
+    container_name: platform-prod-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-platform_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-platform_prod}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command: >
+      postgres
+      -c shared_buffers=512MB
+      -c effective_cache_size=1536MB
+      -c work_mem=16MB
+      -c maintenance_work_mem=128MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-platform_app} -d ${POSTGRES_DB:-platform_prod}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    restart: unless-stopped
+
+  # Redis 7 In-Memory Cache & Distributed Lock
+  redis:
+    image: redis:7-alpine
+    container_name: platform-prod-redis
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  storage:
+

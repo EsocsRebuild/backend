@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: platform-db-migrations
+  namespace: platform
+  labels:
+    app.kubernetes.io/name: platform-migrations
+    app.kubernetes.io/part-of: esocs-digital-platform
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platform-migrations
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        fsGroup: 1654
+      containers:
+        - name: migration-runner
+          image: ghcr.io/techdev/platform-api:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Applying database schema migrations across all 8 modules..."
+              for m in identity tenancy people groups events giving content communications; do
+                echo "--> Applying migrations for module: $m"
+                /migrations/migrate-$m --connection "$ConnectionStrings__Database"
+              done
+              echo "All database migrations applied successfully!"
+          envFrom:
+            - configMapRef:
+                name: platform-config
+            - secretRef:
+                name: platform-secrets
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1024Mi
+          securityContext:
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+
