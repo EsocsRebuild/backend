@@ -349,19 +349,74 @@ public static class CampaignEndpoints
         return Results.NoContent();
     }
 
+    private static string RenderCampaignHtml(EmailCampaign c)
+    {
+        if (string.IsNullOrWhiteSpace(c.ContentJson)) return $"<p>{System.Net.WebUtility.HtmlEncode(c.Name)}</p>";
+
+        try
+        {
+            using var doc = JsonDocument.Parse(c.ContentJson);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("blocks", out var blocks) && blocks.ValueKind == JsonValueKind.Array)
+            {
+                var sb = new System.Text.StringBuilder();
+                foreach (var b in blocks.EnumerateArray())
+                {
+                    var type = b.TryGetProperty("type", out var t) ? t.GetString() : "text";
+                    var text = b.TryGetProperty("content", out var content) ? content.GetString() : "";
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+
+                    switch (type?.ToLowerInvariant())
+                    {
+                        case "heading":
+                        case "h1":
+                        case "h2":
+                            sb.Append($"<h2 style=\"font-size:18px;color:#1e3a8a;margin:16px 0 8px;\">{System.Net.WebUtility.HtmlEncode(text)}</h2>");
+                            break;
+                        case "button":
+                            var url = b.TryGetProperty("url", out var u) ? u.GetString() ?? "#" : "#";
+                            sb.Append($"<p align=\"center\" style=\"margin:20px 0;\"><a href=\"{System.Net.WebUtility.HtmlEncode(url)}\" style=\"display:inline-block;padding:12px 24px;background-color:#1e3a8a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:700;\">{System.Net.WebUtility.HtmlEncode(text)}</a></p>");
+                            break;
+                        default:
+                            sb.Append($"<p style=\"margin:0 0 14px;line-height:1.6;\">{System.Net.WebUtility.HtmlEncode(text)}</p>");
+                            break;
+                    }
+                }
+                var rendered = sb.ToString();
+                if (!string.IsNullOrWhiteSpace(rendered)) return rendered;
+            }
+        }
+        catch { }
+
+        return $"<p>{System.Net.WebUtility.HtmlEncode(c.PreviewText ?? c.Subject ?? c.Name)}</p>";
+    }
+
     private static async Task<IResult> SendTest(Guid id, TestEmailInput req, CommunicationsDbContext db, IEmailSender email, CancellationToken ct)
     {
         var c = await db.Campaigns.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound.ToError();
 
+        var subject = $"[TEST] {c.Subject ?? c.Name}";
+        var bodyHtml = RenderCampaignHtml(c);
+        var preview = Platform.Application.Emails.ChurchEmailLayoutRenderer.Render(new Platform.Application.Emails.ChurchEmailLayoutModel(
+            Subject: subject,
+            Preheader: c.PreviewText ?? $"Test preview of {c.Name}",
+            ChurchName: c.FromName ?? Platform.Application.Emails.ChurchEmailLayoutRenderer.DefaultChurchName,
+            HeaderBadge: "Test Campaign Dispatch",
+            Title: c.Subject ?? c.Name,
+            HtmlContent: bodyHtml,
+            PostalAddress: Platform.Application.Emails.ChurchEmailLayoutRenderer.DefaultPostalAddress));
+
         foreach (var recipient in req.Emails.Take(5))
         {
             if (string.IsNullOrWhiteSpace(recipient) || !recipient.Contains('@')) continue;
             await email.SendAsync(new EmailMessage(
-                recipient.Trim(),
-                $"[TEST] {c.Subject ?? c.Name}",
-                $"<p>This is a test send of campaign: {c.Name}</p>",
-                $"This is a test send of campaign: {c.Name}"
+                To: recipient.Trim(),
+                Subject: subject,
+                HtmlBody: preview,
+                TextBody: $"[TEST EMAIL - {c.Name}]\n\n{c.Subject}\n\n{c.PreviewText}",
+                ReplyTo: c.ReplyTo,
+                Tags: ["test-campaign"]
             ), ct);
         }
 

@@ -54,16 +54,28 @@ public static class DependencyInjection
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.AddSingleton<IFileStorage, LocalFileStorage>();
 
+        services.AddHttpClient<ResendEmailSender>();
+        services.AddHttpClient<SendGridEmailSender>();
+        services.AddHttpClient<PostmarkEmailSender>();
+
         var emailSection = configuration.GetSection(EmailOptions.SectionName);
         services.Configure<EmailOptions>(emailSection);
-        if (string.Equals(emailSection["Provider"], "Smtp", StringComparison.OrdinalIgnoreCase))
+        services.AddScoped<IEmailSender>(sp =>
         {
-            services.AddScoped<IEmailSender, SmtpEmailSender>();
-        }
-        else
-        {
-            services.AddScoped<IEmailSender, LoggingEmailSender>();
-        }
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailOptions>>();
+            var provider = options.Value.Provider;
+
+            IEmailSender coreSender = provider?.ToLowerInvariant() switch
+            {
+                "smtp" => new SmtpEmailSender(options, sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SmtpEmailSender>>()),
+                "resend" => sp.GetRequiredService<ResendEmailSender>(),
+                "sendgrid" => sp.GetRequiredService<SendGridEmailSender>(),
+                "postmark" => sp.GetRequiredService<PostmarkEmailSender>(),
+                _ => new LoggingEmailSender(sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<LoggingEmailSender>>())
+            };
+
+            return new ResilientEmailSender(coreSender, options, sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ResilientEmailSender>>());
+        });
 
         return services;
     }

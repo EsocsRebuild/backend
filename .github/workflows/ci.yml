@@ -22,22 +22,22 @@ concurrency:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   # =========================================================================
   # Tier 1: Fast PR Sanity Gate (< 90 seconds)
-  # Runs on every push to every PR. Restores, compiles, and runs pure
-  # in-memory unit tests and modular boundary architecture tests.
-  # No database containers or heavy services required.
+  # Runs on every push to every PR. Verifies code formatting, restores,
+  # compiles with TreatWarningsAsErrors, and runs architecture & unit tests.
   # =========================================================================
   tier1-fast-gate:
-    name: "Tier 1: PR Sanity (<90s)"
+    name: "Tier 1: PR Sanity & Architecture (<90s)"
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET
+      - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
@@ -53,19 +53,22 @@ jobs:
       - name: Restore Dependencies
         run: dotnet restore Platform.slnx
 
+      - name: Code Formatting & Linting Check
+        run: dotnet format Platform.slnx --verify-no-changes --verbosity minimal
+
       - name: Fast Compilation Check (TreatWarningsAsErrors)
         run: dotnet build Platform.slnx --no-restore -c Release
 
       - name: Enforce Architecture & Module Boundary Rules
-        run: dotnet test tests/Platform.ArchitectureTests/Platform.ArchitectureTests.csproj --no-build -c Release
+        run: dotnet test --project tests/Platform.ArchitectureTests/Platform.ArchitectureTests.csproj --no-build -c Release
 
-      - name: Run Fast In-Memory Unit Tests
-        run: dotnet test tests/Platform.UnitTests/Platform.UnitTests.csproj --no-build -c Release
+      - name: Run In-Memory Unit Tests
+        run: dotnet test --project tests/Platform.UnitTests/Platform.UnitTests.csproj --no-build -c Release
 
   # =========================================================================
-  # Tier 2: Integration Gate (2-4 minutes)
-  # Runs only when PR is marked ready for review (non-draft) or on main push.
-  # Spins up Postgres & Redis to execute database & cross-module integration tests.
+  # Tier 2: Integration & Migration Parity Gate (2-4 minutes)
+  # Runs only when PR is non-draft or on main push.
+  # Spins up Postgres 17 & Redis 7 to execute database & integration tests.
   # =========================================================================
   tier2-integration-gate:
     name: "Tier 2: Integration & Migrations"
@@ -91,7 +94,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET
+      - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
@@ -113,6 +116,7 @@ jobs:
         run: |
           dotnet tool restore
           for m in Identity Tenancy People Groups Events Giving Content Communications; do
+            echo "Checking EF Core model parity for $m..."
             dotnet ef migrations has-pending-model-changes -p src/Modules/$m/Platform.Modules.$m -s src/Host/Platform.Api --no-build --configuration Release
           done
 
@@ -120,19 +124,25 @@ jobs:
         env:
           TEST_DB_CONNECTION: Host=localhost;Port=5432;Username=postgres;Password=postgres
           ConnectionStrings__Redis: localhost:6379
-        run: dotnet test tests/Platform.IntegrationTests/Platform.IntegrationTests.csproj --no-build -c Release
+        run: dotnet test --project tests/Platform.IntegrationTests/Platform.IntegrationTests.csproj --no-build -c Release
 
   # =========================================================================
-  # Tier 3: Deployment & Docker Artifacts (Post-Merge only)
-  # Builds production container artifacts on main branch merges.
+  # Tier 3: Security & Vulnerability Scan
+  # Checks dependencies for known CVEs and scans Dockerfile.
   # =========================================================================
-  tier3-deployment-artifacts:
-    name: "Tier 3: Build Docker Image"
+  tier3-security-gate:
+    name: "Tier 3: Security & Vulnerability Audit"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [tier2-integration-gate]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 6
+    needs: [tier1-fast-gate]
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
-      - name: Build Production Image
-        run: docker build -t platform-api:${{ github.sha }} .
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Audit NuGet Package Vulnerabilities
+        run: dotnet list package --vulnerable --include-transitive

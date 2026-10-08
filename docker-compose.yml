@@ -1,9 +1,13 @@
-# Local development stack: PostgreSQL, Redis, Mailpit (catches outgoing email) and the API.
-#   docker compose up -d db redis mailpit   # dependencies only; run the API from your IDE
-#   docker compose up --build               # everything
+# ==============================================================================
+# Local Development Stack
+# Usage:
+#   docker compose up -d db redis mailpit   # Infra only; run API from IDE/dotnet run
+#   docker compose up --build               # Complete stack with hot-reloading API
+# ==============================================================================
 services:
   db:
     image: postgres:17-alpine
+    container_name: platform-dev-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -13,33 +17,48 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
+      timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
+    container_name: platform-dev-redis
     ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
 
   mailpit:
     image: axllent/mailpit:latest
-    ports: ["8025:8025", "1025:1025"]   # web UI on http://localhost:8025
+    container_name: platform-dev-mailpit
+    ports:
+      - "8025:8025"   # Web UI: http://localhost:8025
+      - "1025:1025"   # SMTP Port
+    restart: unless-stopped
 
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: platform-dev-api
     depends_on:
-      db: { condition: service_healthy }
-      redis: { condition: service_started }
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports: ["5080:8080"]
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Database: Host=db;Port=5432;Database=platform_dev;Username=postgres;Password=postgres
       ConnectionStrings__Redis: redis:6379
-      # JWT signing key — override with a secret from your vault in production.
-      # Local dev value is also in appsettings.Development.json; keep them in sync.
       Auth__SigningKey: dev-only-signing-key-change-me-0123456789abcdef
       Auth__Issuer: "http://localhost:5080"
       Auth__AppBaseUrl: "http://localhost:3001"
       Auth__TotpIssuer: "ESOCS Admin (dev)"
-      # Allow the admin portal (3001) and the public website (3000).
       Cors__AllowedOrigins__0: "http://localhost:3000"
       Cors__AllowedOrigins__1: "http://localhost:3001"
       Email__Provider: Smtp
@@ -53,13 +72,16 @@ services:
       Seed__OwnerEmail: "admin@esocs.test"
       Seed__OwnerPassword: "Preview-Password-2026"
       Tenancy__DefaultTenant: "esocs"
-      # Raise rate limits so heavy local testing isn't blocked.
       RateLimits__AuthPerMinute: "500"
       RateLimits__PublicPerMinute: "2000"
       RateLimits__UserPerMinute: "5000"
-    volumes: [storage:/app/storage]
+    volumes:
+      - .:/workspace
+      - /workspace/src/Host/Platform.Api/bin
+      - /workspace/src/Host/Platform.Api/obj
+      - storage:/workspace/storage
+    restart: unless-stopped
 
 volumes:
   pgdata:
   storage:
-

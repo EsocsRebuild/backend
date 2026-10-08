@@ -20,4 +20,8 @@
     <ProjectReference Include="..\..\Modules\Giving\Platform.Modules.Giving.Contracts\Platform.Modules.Giving.Contracts.csproj" />
     <ProjectReference Include="..\..\Modules\Communications\Platform.Modules.Communications.Contracts\Platform.Modules.Communications.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Platform.UnitTests" />
+    <InternalsVisibleTo Include="Platform.IntegrationTests" />
+  </ItemGroup>
 </Project>

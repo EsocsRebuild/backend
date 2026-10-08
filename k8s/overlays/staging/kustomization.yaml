@@ -1,0 +1,44 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+bases:
+  - ../../base
+
+namePrefix: staging-
+
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: platform-api
+      spec:
+        replicas: 1
+    target:
+      kind: Deployment
+      name: platform-api
+  - patch: |-
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: platform-ingress
+      spec:
+        rules:
+          - host: staging-api.esocs.org
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: platform-api-service
+                      port:
+                        number: 80
+        tls:
+          - hosts:
+              - staging-api.esocs.org
+            secretName: staging-platform-tls-cert
+    target:
+      kind: Ingress
+      name: platform-ingress
+
