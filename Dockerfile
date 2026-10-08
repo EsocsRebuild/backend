@@ -25,7 +25,11 @@ USER $APP_UID
 EXPOSE 8080
 
 # ---- Stage 2: Restore & Dependencies Cache -----------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS restore
+# Run the .NET SDK natively on the builder CPU ($BUILDPLATFORM) rather than inside
+# slow QEMU emulation when producing multi-platform images.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble AS restore
+ARG TARGETARCH
+ARG BUILDPLATFORM
 WORKDIR /src
 
 # Copy central package management and configuration
@@ -62,27 +66,29 @@ COPY src/Modules/Content/Platform.Modules.Content/Platform.Modules.Content.cspro
 COPY src/Modules/Communications/Platform.Modules.Communications.Contracts/Platform.Modules.Communications.Contracts.csproj ./src/Modules/Communications/Platform.Modules.Communications.Contracts/
 COPY src/Modules/Communications/Platform.Modules.Communications/Platform.Modules.Communications.csproj ./src/Modules/Communications/Platform.Modules.Communications/
 
-# Cache restore layer
-RUN dotnet restore src/Host/Platform.Api/Platform.Api.csproj
+# Cache restore layer (restore dependencies for target architecture)
+RUN dotnet restore src/Host/Platform.Api/Platform.Api.csproj -a ${TARGETARCH:-amd64}
 
 # ---- Stage 3: Build & Publish ------------------------------------------------
-FROM restore AS build
+FROM --platform=$BUILDPLATFORM restore AS build
 WORKDIR /src
 
 # Copy all source files
 COPY src/ ./src/
 
-# Compile and publish optimized production release
+ARG TARGETARCH
+# Compile and publish release using .NET native cross-compilation
 RUN dotnet publish src/Host/Platform.Api/Platform.Api.csproj \
     -c Release \
     --no-restore \
+    -a ${TARGETARCH:-amd64} \
     -o /app/publish \
     /p:UseAppHost=false
 
 # ---- Stage 4: EF Core Migration Bundles ---------------------------------------
-FROM restore AS migrations
+# Starts from 'build' where projects are already compiled, avoiding redundant builds.
+FROM --platform=$BUILDPLATFORM build AS migrations
 WORKDIR /src
-COPY src/ ./src/
 
 ARG TARGETARCH
 RUN dotnet tool install --global dotnet-ef --version 10.0.12 && export PATH="$PATH:/root/.dotnet/tools" \
@@ -93,6 +99,7 @@ RUN dotnet tool install --global dotnet-ef --version 10.0.12 && export PATH="$PA
         --project src/Modules/$m/Platform.Modules.$m \
         --startup-project src/Host/Platform.Api \
         --configuration Release \
+        --no-build \
         --self-contained \
         -r $rid \
         -o /migrations/migrate-$(echo $m | tr A-Z a-z) \
