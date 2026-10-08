@@ -66,8 +66,8 @@ COPY src/Modules/Content/Platform.Modules.Content/Platform.Modules.Content.cspro
 COPY src/Modules/Communications/Platform.Modules.Communications.Contracts/Platform.Modules.Communications.Contracts.csproj ./src/Modules/Communications/Platform.Modules.Communications.Contracts/
 COPY src/Modules/Communications/Platform.Modules.Communications/Platform.Modules.Communications.csproj ./src/Modules/Communications/Platform.Modules.Communications/
 
-# Cache restore layer (restore dependencies for target architecture)
-RUN dotnet restore src/Host/Platform.Api/Platform.Api.csproj -a ${TARGETARCH:-amd64}
+# Cache restore layer
+RUN dotnet restore src/Host/Platform.Api/Platform.Api.csproj
 
 # ---- Stage 3: Build & Publish ------------------------------------------------
 FROM --platform=$BUILDPLATFORM restore AS build
@@ -76,12 +76,13 @@ WORKDIR /src
 # Copy all source files
 COPY src/ ./src/
 
-ARG TARGETARCH
-# Compile and publish release using .NET native cross-compilation
+# Compile solution in Release configuration (creates bin/Release/net10.0/Platform.Api.deps.json)
+RUN dotnet build src/Host/Platform.Api/Platform.Api.csproj -c Release --no-restore
+
+# Publish the application (architecture-neutral MSIL with /p:UseAppHost=false)
 RUN dotnet publish src/Host/Platform.Api/Platform.Api.csproj \
     -c Release \
-    --no-restore \
-    -a ${TARGETARCH:-amd64} \
+    --no-build \
     -o /app/publish \
     /p:UseAppHost=false
 
