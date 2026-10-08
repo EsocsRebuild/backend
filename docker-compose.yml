@@ -75,10 +75,40 @@ services:
       RateLimits__AuthPerMinute: "500"
       RateLimits__PublicPerMinute: "2000"
       RateLimits__UserPerMinute: "5000"
+      # Hot Reload configuration for Docker on macOS/Linux
+      DOTNET_USE_POLLING_FILE_WATCHER: "true"
+      DOTNET_WATCH_POLLING_INTERVAL: "500"
+      DOTNET_WATCH_RESTART_ON_RUDE_EDIT: "true"
+      DOTNET_WATCH_SUPPRESS_EMITTING_PAGE: "true"
     volumes:
       - .:/workspace
+      # Mask all project bin/obj folders so host Mac builds and container Linux builds do not collide
       - /workspace/src/Host/Platform.Api/bin
       - /workspace/src/Host/Platform.Api/obj
+      - /workspace/src/BuildingBlocks/Platform.SharedKernel/bin
+      - /workspace/src/BuildingBlocks/Platform.SharedKernel/obj
+      - /workspace/src/BuildingBlocks/Platform.Application/bin
+      - /workspace/src/BuildingBlocks/Platform.Application/obj
+      - /workspace/src/BuildingBlocks/Platform.Infrastructure/bin
+      - /workspace/src/BuildingBlocks/Platform.Infrastructure/obj
+      - /workspace/src/BuildingBlocks/Platform.Web/bin
+      - /workspace/src/BuildingBlocks/Platform.Web/obj
+      - /workspace/src/Modules/Identity/Platform.Modules.Identity/bin
+      - /workspace/src/Modules/Identity/Platform.Modules.Identity/obj
+      - /workspace/src/Modules/Tenancy/Platform.Modules.Tenancy/bin
+      - /workspace/src/Modules/Tenancy/Platform.Modules.Tenancy/obj
+      - /workspace/src/Modules/People/Platform.Modules.People/bin
+      - /workspace/src/Modules/People/Platform.Modules.People/obj
+      - /workspace/src/Modules/Groups/Platform.Modules.Groups/bin
+      - /workspace/src/Modules/Groups/Platform.Modules.Groups/obj
+      - /workspace/src/Modules/Events/Platform.Modules.Events/bin
+      - /workspace/src/Modules/Events/Platform.Modules.Events/obj
+      - /workspace/src/Modules/Giving/Platform.Modules.Giving/bin
+      - /workspace/src/Modules/Giving/Platform.Modules.Giving/obj
+      - /workspace/src/Modules/Content/Platform.Modules.Content/bin
+      - /workspace/src/Modules/Content/Platform.Modules.Content/obj
+      - /workspace/src/Modules/Communications/Platform.Modules.Communications/bin
+      - /workspace/src/Modules/Communications/Platform.Modules.Communications/obj
       - storage:/workspace/storage
     restart: unless-stopped
 

@@ -16,10 +16,40 @@ RUN dotnet tool install --global dotnet-ef --version 10.0.12
 COPY global.json Directory.Build.props Directory.Packages.props .editorconfig Platform.slnx ./
 
 # Copy all project definition files to cache restore layer
-COPY src/BuildingBlocks/*/*.csproj ./src/BuildingBlocks/*/
-COPY src/Host/*/*.csproj ./src/Host/*/
-COPY src/Modules/*/*/*.csproj ./src/Modules/*/*/
-COPY tests/*/*.csproj ./tests/*/
+COPY src/BuildingBlocks/Platform.SharedKernel/Platform.SharedKernel.csproj ./src/BuildingBlocks/Platform.SharedKernel/
+COPY src/BuildingBlocks/Platform.Application/Platform.Application.csproj ./src/BuildingBlocks/Platform.Application/
+COPY src/BuildingBlocks/Platform.Infrastructure/Platform.Infrastructure.csproj ./src/BuildingBlocks/Platform.Infrastructure/
+COPY src/BuildingBlocks/Platform.Web/Platform.Web.csproj ./src/BuildingBlocks/Platform.Web/
+
+COPY src/Host/Platform.Api/Platform.Api.csproj ./src/Host/Platform.Api/
+
+COPY src/Modules/Identity/Platform.Modules.Identity.Contracts/Platform.Modules.Identity.Contracts.csproj ./src/Modules/Identity/Platform.Modules.Identity.Contracts/
+COPY src/Modules/Identity/Platform.Modules.Identity/Platform.Modules.Identity.csproj ./src/Modules/Identity/Platform.Modules.Identity/
+
+COPY src/Modules/Tenancy/Platform.Modules.Tenancy.Contracts/Platform.Modules.Tenancy.Contracts.csproj ./src/Modules/Tenancy/Platform.Modules.Tenancy.Contracts/
+COPY src/Modules/Tenancy/Platform.Modules.Tenancy/Platform.Modules.Tenancy.csproj ./src/Modules/Tenancy/Platform.Modules.Tenancy/
+
+COPY src/Modules/People/Platform.Modules.People.Contracts/Platform.Modules.People.Contracts.csproj ./src/Modules/People/Platform.Modules.People.Contracts/
+COPY src/Modules/People/Platform.Modules.People/Platform.Modules.People.csproj ./src/Modules/People/Platform.Modules.People/
+
+COPY src/Modules/Groups/Platform.Modules.Groups.Contracts/Platform.Modules.Groups.Contracts.csproj ./src/Modules/Groups/Platform.Modules.Groups.Contracts/
+COPY src/Modules/Groups/Platform.Modules.Groups/Platform.Modules.Groups.csproj ./src/Modules/Groups/Platform.Modules.Groups/
+
+COPY src/Modules/Events/Platform.Modules.Events.Contracts/Platform.Modules.Events.Contracts.csproj ./src/Modules/Events/Platform.Modules.Events.Contracts/
+COPY src/Modules/Events/Platform.Modules.Events/Platform.Modules.Events.csproj ./src/Modules/Events/Platform.Modules.Events/
+
+COPY src/Modules/Giving/Platform.Modules.Giving.Contracts/Platform.Modules.Giving.Contracts.csproj ./src/Modules/Giving/Platform.Modules.Giving.Contracts/
+COPY src/Modules/Giving/Platform.Modules.Giving/Platform.Modules.Giving.csproj ./src/Modules/Giving/Platform.Modules.Giving/
+
+COPY src/Modules/Content/Platform.Modules.Content/Platform.Modules.Content.csproj ./src/Modules/Content/Platform.Modules.Content/
+
+COPY src/Modules/Communications/Platform.Modules.Communications.Contracts/Platform.Modules.Communications.Contracts.csproj ./src/Modules/Communications/Platform.Modules.Communications.Contracts/
+COPY src/Modules/Communications/Platform.Modules.Communications/Platform.Modules.Communications.csproj ./src/Modules/Communications/Platform.Modules.Communications/
+
+COPY tests/Directory.Build.props ./tests/
+COPY tests/Platform.ArchitectureTests/Platform.ArchitectureTests.csproj ./tests/Platform.ArchitectureTests/
+COPY tests/Platform.IntegrationTests/Platform.IntegrationTests.csproj ./tests/Platform.IntegrationTests/
+COPY tests/Platform.UnitTests/Platform.UnitTests.csproj ./tests/Platform.UnitTests/
 
 # Restore solution dependencies
 RUN dotnet restore Platform.slnx
