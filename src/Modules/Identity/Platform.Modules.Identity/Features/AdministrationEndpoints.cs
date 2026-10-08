@@ -105,9 +105,16 @@ public static class AdministrationEndpoints
         let roleId = m.Roles.Select(r => r.RoleId).FirstOrDefault()
         select new AdminRow
         {
-            Id = m.Id, Name = u.Name, Email = u.Email, AvatarUrl = u.AvatarUrl, RoleId = roleId,
+            Id = m.Id,
+            Name = u.Name,
+            Email = u.Email,
+            AvatarUrl = u.AvatarUrl,
+            RoleId = roleId,
             RoleName = db.Roles.Where(r => r.Id == roleId).Select(r => r.Name).FirstOrDefault(),
-            Status = m.Status, MfaEnabled = u.TwoFactorEnabled, LastActiveAt = m.LastActiveAt, CreatedAt = m.CreatedAt,
+            Status = m.Status,
+            MfaEnabled = u.TwoFactorEnabled,
+            LastActiveAt = m.LastActiveAt,
+            CreatedAt = m.CreatedAt,
         };
 
     /// <summary>Query row (member-initialised so EF can filter and sort on it).</summary>

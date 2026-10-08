@@ -104,17 +104,17 @@ public sealed class PrayerRequest : TenantAggregateRoot
 
     public static PrayerRequest Submit(Guid? personId, Guid? userId, string name, string? email, string? phone, string request,
         bool isAnonymous, bool shareOnPrayerWall) => new()
-    {
-        PersonId = personId,
-        UserId = userId,
-        Name = name.Trim(),
-        Email = email?.Trim().ToLowerInvariant(),
-        PhoneNumber = phone,
-        Request = request.Trim(),
-        IsAnonymous = isAnonymous,
-        ShareOnPrayerWall = shareOnPrayerWall,
-        Status = PrayerStatus.New,
-    };
+        {
+            PersonId = personId,
+            UserId = userId,
+            Name = name.Trim(),
+            Email = email?.Trim().ToLowerInvariant(),
+            PhoneNumber = phone,
+            Request = request.Trim(),
+            IsAnonymous = isAnonymous,
+            ShareOnPrayerWall = shareOnPrayerWall,
+            Status = PrayerStatus.New,
+        };
 
     public void Manage(PrayerStatus status, Guid? assignedTo, bool approvedForWall, string? answerNote)
     {

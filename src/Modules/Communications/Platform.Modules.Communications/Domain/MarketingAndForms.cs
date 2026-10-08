@@ -43,16 +43,16 @@ public sealed class AudienceContact : TenantEntity
 
     public static AudienceContact Create(Guid listId, string email, string? firstName, string? lastName,
         string status, string source, Guid? memberId, DateTimeOffset now) => new()
-    {
-        ListId = listId,
-        Email = email.Trim().ToLowerInvariant(),
-        FirstName = string.IsNullOrWhiteSpace(firstName) ? null : firstName.Trim(),
-        LastName = string.IsNullOrWhiteSpace(lastName) ? null : lastName.Trim(),
-        Status = status,
-        Source = source,
-        MemberId = memberId,
-        SubscribedAt = status == "subscribed" ? now : null,
-    };
+        {
+            ListId = listId,
+            Email = email.Trim().ToLowerInvariant(),
+            FirstName = string.IsNullOrWhiteSpace(firstName) ? null : firstName.Trim(),
+            LastName = string.IsNullOrWhiteSpace(lastName) ? null : lastName.Trim(),
+            Status = status,
+            Source = source,
+            MemberId = memberId,
+            SubscribedAt = status == "subscribed" ? now : null,
+        };
 
     public void Unsubscribe()
     {
@@ -116,15 +116,15 @@ public sealed class EmailCampaign : TenantAggregateRoot
 
     public static EmailCampaign Create(string name, string? subject, string contentJson, string? audienceJson,
         Guid? createdBy, string? createdByName) => new()
-    {
-        Name = name.Trim(),
-        Subject = subject,
-        ContentJson = contentJson,
-        AudienceJson = audienceJson ?? "{\"listIds\":[]}",
-        Status = "draft",
-        CreatedById = createdBy,
-        CreatedByName = createdByName,
-    };
+        {
+            Name = name.Trim(),
+            Subject = subject,
+            ContentJson = contentJson,
+            AudienceJson = audienceJson ?? "{\"listIds\":[]}",
+            Status = "draft",
+            CreatedById = createdBy,
+            CreatedByName = createdByName,
+        };
 
     public void UpdateDraft(string? name, string? subject, string? previewText, string? fromName, string? fromEmail,
         string? replyTo, string? audienceJson, string? contentJson)

@@ -38,19 +38,19 @@ public sealed class Registration : TenantAggregateRoot
     public static Registration Create(
         Guid eventId, Guid occurrenceId, Guid? personId, Guid? userId, string fullName, string? email, string? phone, int guests,
         RegistrationStatus status, string? notes) => new()
-    {
-        EventId = eventId,
-        OccurrenceId = occurrenceId,
-        PersonId = personId,
-        UserId = userId,
-        FullName = fullName.Trim(),
-        Email = email?.Trim().ToLowerInvariant(),
-        PhoneNumber = phone,
-        Guests = guests,
-        Status = status,
-        Notes = notes,
-        TicketCode = Convert.ToHexString(RandomNumberGenerator.GetBytes(8)),
-    };
+        {
+            EventId = eventId,
+            OccurrenceId = occurrenceId,
+            PersonId = personId,
+            UserId = userId,
+            FullName = fullName.Trim(),
+            Email = email?.Trim().ToLowerInvariant(),
+            PhoneNumber = phone,
+            Guests = guests,
+            Status = status,
+            Notes = notes,
+            TicketCode = Convert.ToHexString(RandomNumberGenerator.GetBytes(8)),
+        };
 
     public void Cancel() => Status = RegistrationStatus.Cancelled;
 

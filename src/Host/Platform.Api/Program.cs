@@ -1,7 +1,7 @@
+using Microsoft.Extensions.FileProviders;
 using Platform.Api;
 using Platform.Api.Configuration;
 using Platform.Api.Seeding;
-using Microsoft.Extensions.FileProviders;
 using Platform.Infrastructure;
 using Platform.Infrastructure.Storage;
 using Platform.Web;
