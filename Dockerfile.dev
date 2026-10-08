@@ -64,6 +64,8 @@ ENV ASPNETCORE_ENVIRONMENT=Development \
     DOTNET_WATCH_SUPPRESS_EMITTING_PAGE=true \
     DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
 
+RUN mkdir -p /storage
+
 EXPOSE 8080
 
 # Default entrypoint runs with hot reload watching Platform.Api
