@@ -19,22 +19,34 @@ The platform uses two optimized container definitions:
 
 Developers can choose between two workflows:
 
-### Workflow A: Infrastructure-only (Fastest IDE experience)
-Run PostgreSQL 17, Redis 7, and Mailpit in background containers, while running the API directly from your IDE:
+### Workflow A: Infrastructure-only (Fastest Sub-Second Hot Reload)
+Run PostgreSQL 17, Redis 7, and Mailpit in background containers, while running the API directly from your host terminal or IDE:
 ```bash
+# 1. Start backing services
 docker compose up -d db redis mailpit
+
+# 2. Run API with native sub-second hot reload
+dotnet watch --project src/Host/Platform.Api/Platform.Api.csproj
 ```
+- API Endpoint: `http://localhost:5080` (Scalar Docs: `http://localhost:5080/docs`)
 - PostgreSQL: `localhost:5432` (user: `postgres`, password: `postgres`, db: `platform_dev`)
 - Redis: `localhost:6379`
-- Mailpit Web Dashboard: `http://localhost:8025` (Catches all sent emails)
-- Mailpit SMTP Port: `localhost:1025`
+- Mailpit Web UI: `http://localhost:8025` (SMTP: `localhost:1025`)
+- **Advantage:** Changes apply in < 150ms in memory, with full native IDE breakpoints and debugging.
 
-### Workflow B: Full Containerized Stack with Hot-Reload
-Spins up infrastructure and the API container using `Dockerfile.dev`:
+### Workflow B: Full Containerized Stack with In-Container Hot-Reload
+Spins up everything (including the API) inside Docker containers using `Dockerfile.dev`:
 ```bash
+# Initial startup (or after modifying NuGet packages)
 docker compose up --build
+
+# Routine day-to-day work (zero rebuilding required!)
+docker compose up
 ```
-Any code change in your local editor triggers an immediate hot-reload inside the container without rebuilding the Docker image.
+- Edits to any `.cs` or `.json` file on your host machine are instantly reflected inside the running container via live volume mounts (`.:/workspace`).
+- Build artifacts (`bin/` and `obj/`) across all modules are masked in isolated Linux volumes to prevent macOS vs Linux binary collisions.
+- Polling file watcher (`DOTNET_USE_POLLING_FILE_WATCHER=true`) automatically detects changes across Docker Desktop's VirtioFS layer.
+- `dotnet watch` applies in-memory hot reload without restarting or rebuilding the container.
 
 ---
 

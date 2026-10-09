@@ -75,6 +75,7 @@ services:
       RateLimits__AuthPerMinute: "500"
       RateLimits__PublicPerMinute: "2000"
       RateLimits__UserPerMinute: "5000"
+      Storage__LocalRootPath: "/storage"
       # Hot Reload configuration for Docker on macOS/Linux
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
       DOTNET_WATCH_POLLING_INTERVAL: "500"
@@ -109,7 +110,7 @@ services:
       - /workspace/src/Modules/Content/Platform.Modules.Content/obj
       - /workspace/src/Modules/Communications/Platform.Modules.Communications/bin
       - /workspace/src/Modules/Communications/Platform.Modules.Communications/obj
-      - storage:/workspace/storage
+      - storage:/storage
     restart: unless-stopped
 
 volumes:
