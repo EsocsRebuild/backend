@@ -57,6 +57,9 @@ RUN dotnet restore Platform.slnx
 # Copy source tree
 COPY . .
 
+# Pre-build Platform.Api in Debug configuration so static web assets are ready
+RUN dotnet build src/Host/Platform.Api/Platform.Api.csproj -c Debug --no-restore
+
 # Environment variables for dev watch mode
 ENV ASPNETCORE_ENVIRONMENT=Development \
     ASPNETCORE_URLS=http://+:8080 \
