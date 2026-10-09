@@ -87,6 +87,31 @@ app.MapScalarApiReference("/docs", o => o.WithTitle("Platform API"));
 app.MapHealthChecks("/health/live", new() { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new() { Predicate = c => c.Tags.Contains("ready") }).AllowAnonymous();
 
+app.MapGet("/", HandleRoot).AllowAnonymous().ExcludeFromDescription();
+app.MapGet("/api", HandleRoot).AllowAnonymous().ExcludeFromDescription();
+app.MapGet("/api/v1", HandleRoot).AllowAnonymous().ExcludeFromDescription();
+
+static IResult HandleRoot(HttpContext context)
+{
+    if (context.Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.Redirect("/docs");
+    }
+
+    return Results.Ok(new
+    {
+        name = "Platform API",
+        version = "v1",
+        documentation = "/docs",
+        openapi = "/openapi/v1.json",
+        health = new
+        {
+            live = "/health/live",
+            ready = "/health/ready"
+        }
+    });
+}
+
 var api = app.MapApi();
 foreach (var module in Modules.All)
 {
