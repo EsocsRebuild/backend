@@ -91,6 +91,8 @@ public sealed class IdentityModule : IModule
                             context.Fail("Session ended.");
                         }
                     },
+
+                    OnAuthenticationFailed = _ => Task.CompletedTask,
                 };
             })
             .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
