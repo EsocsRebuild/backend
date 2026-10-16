@@ -96,20 +96,40 @@ services:
       - /workspace/src/BuildingBlocks/Platform.Web/obj
       - /workspace/src/Modules/Identity/Platform.Modules.Identity/bin
       - /workspace/src/Modules/Identity/Platform.Modules.Identity/obj
+      - /workspace/src/Modules/Identity/Platform.Modules.Identity.Contracts/bin
+      - /workspace/src/Modules/Identity/Platform.Modules.Identity.Contracts/obj
       - /workspace/src/Modules/Tenancy/Platform.Modules.Tenancy/bin
       - /workspace/src/Modules/Tenancy/Platform.Modules.Tenancy/obj
+      - /workspace/src/Modules/Tenancy/Platform.Modules.Tenancy.Contracts/bin
+      - /workspace/src/Modules/Tenancy/Platform.Modules.Tenancy.Contracts/obj
       - /workspace/src/Modules/People/Platform.Modules.People/bin
       - /workspace/src/Modules/People/Platform.Modules.People/obj
+      - /workspace/src/Modules/People/Platform.Modules.People.Contracts/bin
+      - /workspace/src/Modules/People/Platform.Modules.People.Contracts/obj
       - /workspace/src/Modules/Groups/Platform.Modules.Groups/bin
       - /workspace/src/Modules/Groups/Platform.Modules.Groups/obj
+      - /workspace/src/Modules/Groups/Platform.Modules.Groups.Contracts/bin
+      - /workspace/src/Modules/Groups/Platform.Modules.Groups.Contracts/obj
       - /workspace/src/Modules/Events/Platform.Modules.Events/bin
       - /workspace/src/Modules/Events/Platform.Modules.Events/obj
+      - /workspace/src/Modules/Events/Platform.Modules.Events.Contracts/bin
+      - /workspace/src/Modules/Events/Platform.Modules.Events.Contracts/obj
       - /workspace/src/Modules/Giving/Platform.Modules.Giving/bin
       - /workspace/src/Modules/Giving/Platform.Modules.Giving/obj
+      - /workspace/src/Modules/Giving/Platform.Modules.Giving.Contracts/bin
+      - /workspace/src/Modules/Giving/Platform.Modules.Giving.Contracts/obj
       - /workspace/src/Modules/Content/Platform.Modules.Content/bin
       - /workspace/src/Modules/Content/Platform.Modules.Content/obj
       - /workspace/src/Modules/Communications/Platform.Modules.Communications/bin
       - /workspace/src/Modules/Communications/Platform.Modules.Communications/obj
+      - /workspace/src/Modules/Communications/Platform.Modules.Communications.Contracts/bin
+      - /workspace/src/Modules/Communications/Platform.Modules.Communications.Contracts/obj
+      - /workspace/tests/Platform.UnitTests/bin
+      - /workspace/tests/Platform.UnitTests/obj
+      - /workspace/tests/Platform.IntegrationTests/bin
+      - /workspace/tests/Platform.IntegrationTests/obj
+      - /workspace/tests/Platform.ArchitectureTests/bin
+      - /workspace/tests/Platform.ArchitectureTests/obj
       - storage:/storage
     restart: unless-stopped
 
