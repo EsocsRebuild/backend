@@ -27,6 +27,7 @@ public sealed class PeopleModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         MembersEndpoints.Map(endpoints);
+        RanksEndpoints.Map(endpoints);
         CareEndpoints.Map(endpoints);
         MyProfileEndpoints.Map(endpoints);
     }

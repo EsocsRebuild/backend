@@ -52,6 +52,7 @@ foreach (var module in Modules.All)
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+app.UseMiddleware<RouteNormalizationMiddleware>();
 app.UseSerilogRequestLogging(o => o.EnrichDiagnosticContext = (diag, http) =>
 {
     diag.Set("TenantId", http.User.FindFirst("tid")?.Value ?? http.Request.Headers[TenantResolutionMiddleware.TenantHeader].ToString());
@@ -76,6 +77,7 @@ if (string.Equals(storage.Provider, "Local", StringComparison.OrdinalIgnoreCase)
 }
 
 app.UseCors(Platform.Api.Configuration.ServiceCollectionExtensions.CorsPolicy);
+app.UseMiddleware<MalformedTokenSanitizerMiddleware>();
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseRateLimiter();

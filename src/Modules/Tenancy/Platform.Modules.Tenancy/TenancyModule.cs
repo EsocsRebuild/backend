@@ -34,6 +34,7 @@ public sealed class TenancyModule : IModule
         ManageTenantDomains.Map(tenant);
 
         Units.Map(endpoints);
+        HierarchyEndpoints.Map(endpoints);
         Settings.Map(endpoints);
         PlatformTenants.Map(endpoints);
         PublicTenant.Map(endpoints);
