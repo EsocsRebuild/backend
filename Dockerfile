@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Platform API" \
       org.opencontainers.image.vendor="ESOCS Digital Technologies" \
       org.opencontainers.image.licenses="Proprietary"
 
-ENV ASPNETCORE_URLS=http://+:8080 \
+ENV ASPNETCORE_HTTP_PORTS=8080 \
     ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_gcServer=1 \
     DOTNET_GCDump_Enable=0 \
