@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -31,7 +32,15 @@ public sealed class IdentityModule : IModule
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddDataProtection();
+        var dp = services.AddDataProtection()
+            .SetApplicationName("PlatformApi");
+
+        var storagePath = configuration.GetValue<string>("Storage:LocalRootPath");
+        var keysDirectory = !string.IsNullOrWhiteSpace(storagePath)
+            ? Path.Combine(Path.GetFullPath(storagePath), "dataprotection-keys")
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aspnet", "dataprotection-keys");
+        Directory.CreateDirectory(keysDirectory);
+        dp.PersistKeysToFileSystem(new DirectoryInfo(keysDirectory));
         services.AddSingleton<Argon2PasswordHasher>();
         services.AddSingleton<IPasswordHasher<User>>(sp => sp.GetRequiredService<Argon2PasswordHasher>());
         services.AddHttpClient(nameof(PasswordPolicy), c =>

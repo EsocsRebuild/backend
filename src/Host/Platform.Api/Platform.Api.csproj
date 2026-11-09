@@ -3,6 +3,7 @@
     <RootNamespace>Platform.Api</RootNamespace>
     <UserSecretsId>platform-api</UserSecretsId>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />

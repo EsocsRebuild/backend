@@ -62,7 +62,7 @@ RUN dotnet build src/Host/Platform.Api/Platform.Api.csproj -c Debug --no-restore
 
 # Environment variables for dev watch mode
 ENV ASPNETCORE_ENVIRONMENT=Development \
-    ASPNETCORE_URLS=http://+:8080 \
+    ASPNETCORE_HTTP_PORTS=8080 \
     DOTNET_USE_POLLING_FILE_WATCHER=true \
     DOTNET_WATCH_SUPPRESS_EMITTING_PAGE=true \
     DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
